@@ -6,6 +6,7 @@ import cookieParser from "cookie-parser";
 import compression from "compression"; // Nén response để app load nhanh hơn
 import apiRoutes from "./routes/index.route.js";
 import morgan from "morgan"; // Log request để dễ debug
+import os from "os";
 dotenv.config();
 
 const PORT = process.env.PORT || 6666;

@@ -10,7 +10,7 @@ import {
   StyleSheet,
 } from "react-native";
 import { Image } from "expo-image";
-import { SignIn } from "@clerk/clerk-react";
+import { useSignIn } from "@clerk/clerk-react";
 
 interface SocialButtonProps extends TouchableOpacityProps {
   type: "google" | "facebook";
@@ -22,6 +22,7 @@ export const SocialButton = ({
   style,
   ...props 
 }: SocialButtonProps) => {
+  const { signIn } = useSignIn();
   const config = {
     google: {
       backgroundColor: "#ffffff",
@@ -68,7 +69,7 @@ export const SocialButton = ({
   const handlePress = () => {
     if (type === "google") {
       // Sign in with Clerk using Google
-      SignIn({ provider: "google" });
+      signIn?.create({ strategy: "oauth_google", redirectUrl: "/" });
     }
   };
   return (

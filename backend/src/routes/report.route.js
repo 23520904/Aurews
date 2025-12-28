@@ -1,5 +1,5 @@
 import express from "express";
-import { protectRoute, authorize } from "../middleware/auth.middlewares.js";
+import { protectRoute, authorize } from "../middlewares/auth.middlewares.js";
 import {
   createReport,
   getAllReports,

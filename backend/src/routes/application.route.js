@@ -2,7 +2,8 @@ import {
   getAllApplications,
   reviewApplication,
   submitApplication,
-} from "./../controllers/application.controller";
+  getMyApplication,
+} from "./../controllers/application.controller.js";
 import express from "express";
 import { authorize, protectRoute } from "../middlewares/auth.middlewares.js";
 import { authorApplicationUpload } from "../utils/fileUpload.js";
