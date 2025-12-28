@@ -11,6 +11,27 @@ import { useAuthStore } from "../../src/store/authStore";
 export default function Login() {
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
+  const { login, isLoading } = useAuthStore();
+
+  // Định nghĩa hàm xử lý khi bấm nút Sign in
+  const handleLogin = async () => {
+    if (!email || !password) {
+      Alert.alert("Lỗi", "Vui lòng nhập đầy đủ email và mật khẩu");
+      return;
+    }
+
+    try {
+      // Gọi hàm login từ store
+      await login(email, password);
+      
+      // Nếu thành công, chuyển hướng về trang chủ
+      Alert.alert("Thành công", "Đăng nhập thành công!");
+      router.replace("/"); 
+    } catch (error: any) {
+      // Nếu lỗi, hiện thông báo (message lỗi đã được throw từ store)
+      Alert.alert("Đăng nhập thất bại", error.message || "Có lỗi xảy ra");
+    }
+  };
 
   return (
     <KeyboardAware style={styles.safeArea}>

@@ -3,6 +3,7 @@ import { generateTokens, storeRefreshToken } from "../lib/token.js";
 import { setCookies, clearCookies } from "../lib/cookie.js"; // Đảm bảo bạn đã thêm hàm clearCookies
 import jwt from "jsonwebtoken";
 import { redis } from "../lib/redis.js";
+import { errorHandler } from "../utils/error.js";
 // 1. ĐĂNG KÝ
 export const register = async (req, res, next) => {
   try {
@@ -10,16 +11,16 @@ export const register = async (req, res, next) => {
 
     // Validate cơ bản
     if (!fullName || !email || !password || !username || !dateOfBirth) {
-      return next(errorHandler(400, "Vui lòng điền đầy đủ thông tin"));
+      throw errorHandler(400, "Vui lòng điền đầy đủ thông tin");
     }
     if (password.length < 6) {
-      return next(errorHandler(400, "Mật khẩu phải có ít nhất 6 ký tự"));
+      throw errorHandler(400, "Mật khẩu phải có ít nhất 6 ký tự");
     }
 
     // Kiểm tra user tồn tại (email hoặc username)
     const userExists = await User.findOne({ $or: [{ email }, { username }] });
     if (userExists) {
-      return next(errorHandler(400, "Email hoặc Username đã tồn tại"));
+      throw errorHandler(400, "Email hoặc Username đã tồn tại");
     }
 
     // Tạo user mới
@@ -63,18 +64,16 @@ export const login = async (req, res, next) => {
     const user = await User.findOne({ email }).select("+password");
 
     if (!user || !(await user.comparePassword(password))) {
-      return next(errorHandler(400, "Email hoặc mật khẩu không chính xác"));
+      throw errorHandler(400, "Email hoặc mật khẩu không chính xác");
     }
 
     // Kiểm tra nếu user bị Ban
     if (user.isBanned) {
-      return next(
-        errorHandler(
-          403,
-          `Tài khoản đã bị khóa. Lý do: ${
-            user.banReason || "Vi phạm chính sách"
-          }`
-        )
+      throw errorHandler(
+        403,
+        `Tài khoản đã bị khóa. Lý do: ${
+          user.banReason || "Vi phạm chính sách"
+        }`
       );
     }
 
@@ -137,7 +136,7 @@ export const refreshToken = async (req, res, next) => {
     const refreshToken = req.cookies.refreshToken;
 
     if (!refreshToken) {
-      return next(errorHandler(401, "No refresh token provided"));
+      throw errorHandler(401, "No refresh token provided");
     }
 
     // Verify token
@@ -146,7 +145,7 @@ export const refreshToken = async (req, res, next) => {
     // Kiểm tra token có khớp với Redis không (Chống dùng token cũ/đã logout)
     const storedToken = await redis.get(`refresh_token:${decoded.userId}`);
     if (storedToken !== refreshToken) {
-      return next(errorHandler(401, "Invalid refresh token"));
+      throw errorHandler(401, "Invalid refresh token");
     }
 
     // Tạo cặp token MỚI (Token Rotation - Tăng bảo mật)
@@ -167,6 +166,6 @@ export const refreshToken = async (req, res, next) => {
     console.log("Error in refresh token controller", error.message);
     // Nếu lỗi (token hết hạn...), xóa cookie để user đăng nhập lại
     clearCookies(res);
-    return next(errorHandler(401, "Refresh token expired or invalid"));
+    throw errorHandler(401, "Refresh token expired or invalid");
   }
 };

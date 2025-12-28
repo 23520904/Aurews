@@ -1,7 +1,19 @@
-// frontend/src/store/authStore.ts
 import { create } from "zustand";
 
-const API_BASE_URL = "http://localhost:5000/api/auth"; // Adjust if needed
+// Lấy IP server từ environment variable, nếu không có thì dùng localhost
+const getAPIBaseURL = () => {
+  if (process.env.EXPO_PUBLIC_API_BASE_URL) {
+    return process.env.EXPO_PUBLIC_API_BASE_URL;
+  }
+  // Fallback: lấy từ window.location (nếu web)
+  if (typeof window !== "undefined" && window.location.hostname) {
+    return `http://${window.location.hostname}:6666/api/auth`;
+  }
+  // Fallback cuối cùng
+  return "http://localhost:6666/api/auth";
+};
+
+const API_BASE_URL = getAPIBaseURL();
 
 type AuthState = {
   user: any | null;

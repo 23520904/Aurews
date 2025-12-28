@@ -1,6 +1,6 @@
 // File này giữ nguyên, logic đã ổn.
 import jwt from "jsonwebtoken";
-import { redis } from "./redis.js";
+import {redis} from "./redis.js";
 
 export const generateTokens = (userId) => {
   const accessToken = jwt.sign({ userId }, process.env.JWT_ACCESS_SECRET, {

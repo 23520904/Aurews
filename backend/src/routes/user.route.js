@@ -10,7 +10,7 @@ import {
   updateProfile,
   updateUserPreferences,
 } from "../controllers/user.controller.js";
-import { authorize, protectRoute } from "../middleware/auth.middlewares.js"; // Sửa 'middlewares' thành 'middleware' (check folder thực tế)
+import { authorize, protectRoute } from "../middlewares/auth.middlewares.js";
 import { uploadAvatar } from "../utils/fileUpload.js"; // <--- SỬA LẠI ĐƯỜNG DẪN ĐÚNG
 
 const router = express.Router();

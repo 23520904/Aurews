@@ -23,6 +23,7 @@ export default function Register() {
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
   const [dateOfBirth, setDateOfBirth] = useState("");
+  const { register, isLoading } = useAuthStore();
 
   // Native date-picker state
   const defaultDOB = () => {
@@ -62,6 +63,33 @@ export default function Register() {
   const confirmIOS = () => {
     setDateOfBirth(formatDate(pickerDate));
     setShowPicker(false);
+  };
+
+  const handleRegister = async () => {
+    // Validate cơ bản
+    if (!fullName || !username || !email || !password || !dateOfBirth) {
+      Alert.alert("Lỗi", "Vui lòng điền đầy đủ thông tin");
+      return;
+    }
+
+    try {
+      // Gọi hàm register từ store
+      await register({
+        fullName,
+        username,
+        email,
+        password,
+        dateOfBirth,
+      });
+
+      // Đăng ký thành công -> Chuyển về trang Login hoặc trang chủ
+      Alert.alert("Thành công", "Tạo tài khoản thành công!", [
+        { text: "OK", onPress: () => router.replace("/(auth)/login") }
+      ]);
+    } catch (error: any) {
+      // Lỗi sẽ được store ném ra (throw)
+      Alert.alert("Đăng ký thất bại", error.message || "Có lỗi xảy ra");
+    }
   };
 
   return (

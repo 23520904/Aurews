@@ -1,4 +1,3 @@
-// src/components/ui/KeyboardAware.tsx
 import React from "react";
 import {
   Keyboard,
