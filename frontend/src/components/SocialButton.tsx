@@ -1,27 +1,25 @@
-// src/components/ui/SocialButton.tsx
-import { MaterialIcons, FontAwesome } from "@expo/vector-icons";
-import React from "react";
-import { 
-  TouchableOpacity, 
-  TouchableOpacityProps, 
-  View,
-  Text,
+import { FontAwesome, MaterialIcons } from "@expo/vector-icons";
+import {
   Platform,
   StyleSheet,
+  Text,
+  TouchableOpacity,
+  TouchableOpacityProps,
 } from "react-native";
-import { Image } from "expo-image";
-import { SignIn } from "@clerk/clerk-react";
+import { useSignIn } from "@clerk/clerk-expo";
 
 interface SocialButtonProps extends TouchableOpacityProps {
   type: "google" | "facebook";
 }
 
-export const SocialButton = ({ 
-  type, 
+export const SocialButton = ({
+  type,
   disabled,
   style,
-  ...props 
+  ...props
 }: SocialButtonProps) => {
+  const { signIn, isLoaded, setActive } = useSignIn();
+
   const config = {
     google: {
       backgroundColor: "#ffffff",
@@ -45,19 +43,20 @@ export const SocialButton = ({
 
   const current = config[type];
 
-  const shadowStyle = Platform.OS === "ios" 
-    ? {
-        shadowColor: current.shadowColor,
-        shadowOffset: { width: 0, height: 2 },
-        shadowOpacity: current.shadowOpacity,
-        shadowRadius: 4,
-        elevation: 3,
-      }
-    : {};
+  const shadowStyle =
+    Platform.OS === "ios"
+      ? {
+          shadowColor: current.shadowColor,
+          shadowOffset: { width: 0, height: 2 },
+          shadowOpacity: current.shadowOpacity,
+          shadowRadius: 4,
+          elevation: 3,
+        }
+      : {};
 
   const buttonStyle = [
     styles.button,
-    { 
+    {
       backgroundColor: current.backgroundColor,
       borderColor: current.borderColor,
     },
@@ -65,10 +64,22 @@ export const SocialButton = ({
     shadowStyle,
     style,
   ];
-  const handlePress = () => {
+  const handlePress = async () => {
+    if (!isLoaded) return;
+
     if (type === "google") {
-      // Sign in with Clerk using Google
-      SignIn({ provider: "google" });
+      try {
+        const { createdSessionId } = await signIn.create({
+          strategy: "oauth_google",
+          redirectUrl: "aurews://oauth-callback",
+        });
+
+        if (createdSessionId && setActive) {
+          await setActive({ session: createdSessionId });
+        }
+      } catch (err) {
+        console.error("OAuth error", err);
+      }
     }
   };
   return (
@@ -78,7 +89,7 @@ export const SocialButton = ({
       disabled={disabled}
       {...props}
     >
-          {type === "google" ? (
+      {type === "google" ? (
         <FontAwesome
           name={"google" as any}
           size={20}

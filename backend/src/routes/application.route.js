@@ -1,12 +1,7 @@
-import {
-  getAllApplications,
-  reviewApplication,
-  submitApplication,
-} from "./../controllers/application.controller";
-import express from "express";
 import { authorize, protectRoute } from "../middlewares/auth.middlewares.js";
+import express from 'express'
 import { authorApplicationUpload } from "../utils/fileUpload.js";
-
+import { getAllApplications, getMyApplication, reviewApplication, submitApplication } from "../controllers/application.controller.js";
 const router = express.Router();
 router.use(protectRoute);
 

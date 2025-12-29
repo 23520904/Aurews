@@ -1,3 +1,4 @@
+// src/utils/fileUpload.js
 import { v2 as cloudinary } from "cloudinary";
 import { CloudinaryStorage } from "multer-storage-cloudinary";
 import multer from "multer";
@@ -5,14 +6,12 @@ import dotenv from "dotenv";
 
 dotenv.config();
 
-// 1. Cấu hình Cloudinary
 cloudinary.config({
   cloud_name: process.env.CLOUDINARY_CLOUD_NAME,
   api_key: process.env.CLOUDINARY_API_KEY,
   api_secret: process.env.CLOUDINARY_API_SECRET,
 });
 
-// 2. Hàm tạo Storage (Factory Function)
 const createCloudinaryStorage = (
   folderPath,
   allowedFormats = ["jpg", "png", "jpeg", "webp"]
@@ -31,38 +30,38 @@ const createCloudinaryStorage = (
   });
 };
 
-// --- CÁC UPLOADER RIÊNG BIỆT ---
+// --- CÁC UPLOADER ---
 
-// A. Upload Avatar (Profile)
+// A. Avatar
 const avatarStorage = createCloudinaryStorage("users/avatars");
 export const uploadAvatar = multer({
   storage: avatarStorage,
-  limits: { fileSize: 5 * 1024 * 1024 }, // 5MB
+  limits: { fileSize: 5 * 1024 * 1024 },
 }).single("avatar");
 
-// B. Upload Ảnh Bìa Bài Viết (Thumbnail/Feature Image) -> DÙNG CHO POST CONTROLLER
-// Logic: Upload 1 ảnh duy nhất, field name là "image"
+// B. Upload Ảnh Bìa (Thumbnail) -> SỬA TẠI ĐÂY
 const postImageStorage = createCloudinaryStorage("posts/thumbnails");
 export const postImageUpload = multer({
   storage: postImageStorage,
-  limits: { fileSize: 10 * 1024 * 1024 }, // 10MB
-}).single("image");
+  limits: { fileSize: 10 * 1024 * 1024 },
+}).single("thumbnail"); // <--- ĐỔI TỪ "image" THÀNH "thumbnail"
 
-// C. Upload Gallery Bài viết (Nhiều ảnh/video trong nội dung) -> DÙNG CHO EDITOR
-const postMediaStorage = createCloudinaryStorage("posts/media", [
-  "jpg",
-  "png",
-  "jpeg",
-  "webp",
-  "mp4",
-  "mov",
-]);
+// C. Upload Editor (Ảnh trong nội dung bài viết) -> THÊM MỚI
+// Frontend Editor gửi key là "file"
+const editorStorage = createCloudinaryStorage("posts/content");
+export const uploadEditorImage = multer({
+  storage: editorStorage,
+  limits: { fileSize: 5 * 1024 * 1024 },
+}).single("file"); // <--- Key là "file"
+
+// D. Upload Gallery (Giữ nguyên nếu dùng cho mục đích khác)
+const postMediaStorage = createCloudinaryStorage("posts/media");
 export const uploadPostMedia = multer({
   storage: postMediaStorage,
-  limits: { fileSize: 50 * 1024 * 1024 }, // 50MB cho video
-}).array("images", 10); // Cho phép up 1 lúc 10 file
+  limits: { fileSize: 50 * 1024 * 1024 },
+}).array("images", 10);
 
-// D. Upload Hồ sơ tác giả (Logic phức tạp riêng)
+// E. Author Application (Giữ nguyên)
 const authorAppStorage = new CloudinaryStorage({
   cloudinary: cloudinary,
   params: async (req, file) => {
@@ -73,7 +72,6 @@ const authorAppStorage = new CloudinaryStorage({
       folder = "aurews_app/authors/certificates";
     else if (file.fieldname === "portfolio")
       folder = "aurews_app/authors/portfolio";
-
     return {
       folder: folder,
       resource_type: "auto",

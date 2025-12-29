@@ -3,6 +3,7 @@ import { generateTokens, storeRefreshToken } from "../lib/token.js";
 import { setCookies, clearCookies } from "../lib/cookie.js"; // Đảm bảo bạn đã thêm hàm clearCookies
 import jwt from "jsonwebtoken";
 import { redis } from "../lib/redis.js";
+import { errorHandler } from "../utils/error.js";
 // 1. ĐĂNG KÝ
 export const register = async (req, res, next) => {
   try {

@@ -1,7 +1,13 @@
 import express from "express";
 import {
   getBookmarks,
+  getLikedPosts,
+  getNotifications,
   getProfile,
+  getUserPublicProfile,
+  getFollowers,
+  getFollowing,
+  markNotificationsRead,
   getReadingHistory,
   getUserPreferences,
   getUsers,
@@ -9,12 +15,19 @@ import {
   toggleFollow,
   updateProfile,
   updateUserPreferences,
+  getTopAuthors,
+  toggleBookmark,
+  searchUsers,
+  getAdminDashboardStats,
 } from "../controllers/user.controller.js";
-import { authorize, protectRoute } from "../middleware/auth.middlewares.js"; // Sửa 'middlewares' thành 'middleware' (check folder thực tế)
 import { uploadAvatar } from "../utils/fileUpload.js"; // <--- SỬA LẠI ĐƯỜNG DẪN ĐÚNG
+import { authorize, protectRoute } from "../middlewares/auth.middlewares.js";
 
 const router = express.Router();
-
+// Thêm vào user.route.js
+// PUBLIC ROUTE (Đặt trên router.use(protectRoute))
+router.get("/top-authors", getTopAuthors);
+router.get("/search", searchUsers); // Public Search Route
 // Middleware chung
 router.use(protectRoute);
 
@@ -29,10 +42,22 @@ router.put("/me/preferences", updateUserPreferences);
 // 3. Quản lý Lịch sử & Bookmark & Follow
 router.get("/me/history", getReadingHistory);
 router.get("/me/bookmarks", getBookmarks);
+router.get("/me/likes", getLikedPosts);
+
+console.log("Check function:", getNotifications);
+
+router.get("/me/notifications", getNotifications);
+router.put("/me/notifications/read", markNotificationsRead);
+router.get("/:userId/profile", getUserPublicProfile);
+router.get("/:userId/followers", getFollowers);
+router.get("/:userId/following", getFollowing);
 router.post("/:userId/follow", toggleFollow);
 
 // --- ADMIN ROUTES ---
 router.get("/", authorize("admin"), getUsers);
 router.put("/:userId/ban", authorize("admin"), switchBan);
 
+router.post("/me/bookmarks/:postId", toggleBookmark); // [POST] để thực hiện hành động toggle
+
+router.get("/analytics/growth", authorize("admin"), getAdminDashboardStats);
 export default router;

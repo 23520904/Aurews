@@ -1,52 +1,74 @@
+// backend/src/controllers/user.controller.js
+import Notification from "../models/notification.model.js";
 import Bookmark from "../models/bookmark.model.js";
+import Like from "../models/like.model.js";
 import Follow from "../models/follow.model.js";
 import ReadingHistory from "../models/readingHistory.model.js";
 import User from "../models/user.model.js";
 import UserPreferences from "../models/userPreferences.model.js";
+import Post from "../models/post.model.js"; // <--- Đảm bảo import này
+import Comment from "../models/comment.model.js"; // <--- Đảm bảo import này
 import { errorHandler } from "../utils/error.js";
 
 // =========================================================================
-// 1. QUẢN LÝ PROFILE (CÁ NHÂN)
+// 1. NOTIFICATIONS
 // =========================================================================
+export const getNotifications = async (req, res, next) => {
+  try {
+    const notifications = await Notification.find({ recipient: req.user._id })
+      .populate("sender", "fullName avatar")
+      .sort({ createdAt: -1 });
 
-// Lấy thông tin bản thân
+    res.status(200).json({ success: true, data: notifications });
+  } catch (error) {
+    next(error);
+  }
+};
+
+export const markNotificationsRead = async (req, res, next) => {
+  try {
+    await Notification.updateMany(
+      { recipient: req.user._id, isRead: false },
+      { $set: { isRead: true } }
+    );
+    res
+      .status(200)
+      .json({ success: true, message: "Đã đánh dấu tất cả là đã đọc" });
+  } catch (error) {
+    next(error);
+  }
+};
+
+// =========================================================================
+// 2. QUẢN LÝ PROFILE (CÁ NHÂN)
+// =========================================================================
 export const getProfile = async (req, res, next) => {
   try {
     const user = await User.findById(req.user._id).select(
       "-password -otpCode -otpExpires"
     );
     if (!user) return next(errorHandler(404, "User not found"));
-
     res.status(200).json({ success: true, data: user });
   } catch (error) {
     next(error);
   }
 };
 
-// Cập nhật Profile (Text + Avatar)
 export const updateProfile = async (req, res, next) => {
   try {
     const { fullName, bio } = req.body;
     const user = await User.findById(req.user._id);
+    if (!user) return next(errorHandler(404, "Không tìm thấy người dùng"));
 
-    if (!user) return next(errorHandler(404, "User not found"));
-
-    // Cập nhật text
     if (fullName) user.fullName = fullName;
     if (bio) user.bio = bio;
-
-    // Cập nhật Avatar (Nếu có file upload từ Multer Cloudinary)
-    // req.file.path là đường dẫn ảnh trên Cloudinary
     if (req.file && req.file.path) {
       user.avatar = req.file.path;
     }
 
     const updatedUser = await user.save();
-
-    // Loại bỏ password trước khi trả về
     const userObj = updatedUser.toObject();
     delete userObj.password;
-    delete userObj.otpCode;
 
     res.status(200).json({
       success: true,
@@ -59,14 +81,11 @@ export const updateProfile = async (req, res, next) => {
 };
 
 // =========================================================================
-// 2. QUẢN LÝ SỞ THÍCH (UserPreferences)
+// 3. QUẢN LÝ SỞ THÍCH
 // =========================================================================
-
 export const getUserPreferences = async (req, res, next) => {
   try {
     let prefs = await UserPreferences.findOne({ user: req.user._id });
-
-    // Nếu chưa có, tạo mặc định
     if (!prefs) {
       prefs = await UserPreferences.create({
         user: req.user._id,
@@ -75,7 +94,6 @@ export const getUserPreferences = async (req, res, next) => {
         pushNotifications: true,
       });
     }
-
     res.status(200).json({ success: true, data: prefs });
   } catch (error) {
     next(error);
@@ -86,19 +104,11 @@ export const updateUserPreferences = async (req, res, next) => {
   try {
     const { favoriteCategories, emailNotifications, pushNotifications } =
       req.body;
-
     const prefs = await UserPreferences.findOneAndUpdate(
       { user: req.user._id },
-      {
-        $set: {
-          favoriteCategories,
-          emailNotifications,
-          pushNotifications,
-        },
-      },
+      { $set: { favoriteCategories, emailNotifications, pushNotifications } },
       { new: true, upsert: true }
     );
-
     res.status(200).json({
       success: true,
       message: "Cập nhật sở thích thành công",
@@ -110,9 +120,8 @@ export const updateUserPreferences = async (req, res, next) => {
 };
 
 // =========================================================================
-// 3. TƯƠNG TÁC: HISTORY, BOOKMARK, FOLLOW
+// 4. TƯƠNG TÁC
 // =========================================================================
-
 export const getReadingHistory = async (req, res, next) => {
   try {
     const page = parseInt(req.query.page) || 1;
@@ -122,7 +131,7 @@ export const getReadingHistory = async (req, res, next) => {
     const history = await ReadingHistory.find({ user: req.user._id })
       .populate({
         path: "post",
-        select: "title slug thumbnail summary author publishTime category", // Lightweight projection
+        select: "title slug thumbnail summary author publishTime category",
         populate: { path: "authorUser", select: "fullName avatar" },
       })
       .sort({ readAt: -1 })
@@ -148,6 +157,7 @@ export const getBookmarks = async (req, res, next) => {
         path: "post",
         select:
           "title slug thumbnail summary author publishTime category status",
+        populate: { path: "authorUser", select: "fullName avatar" },
       })
       .sort({ createdAt: -1 });
 
@@ -159,7 +169,76 @@ export const getBookmarks = async (req, res, next) => {
   }
 };
 
-// --- LOGIC FOLLOW MỚI (UPDATE TRỰC TIẾP VÀO USER MODEL) ---
+export const getLikedPosts = async (req, res, next) => {
+  try {
+    const likes = await Like.find({ user: req.user._id })
+      .populate({
+        path: "post",
+        select:
+          "title slug thumbnail summary author publishTime category status",
+        populate: { path: "authorUser", select: "fullName avatar" },
+      })
+      .sort({ createdAt: -1 });
+
+    const likedPosts = likes.map((like) => like.post).filter(Boolean);
+    res
+      .status(200)
+      .json({ success: true, count: likedPosts.length, data: likedPosts });
+  } catch (error) {
+    next(error);
+  }
+};
+
+// FOLLOW
+export const getFollowers = async (req, res, next) => {
+  try {
+    const userId = req.params.userId || req.user._id;
+    const followers = await Follow.find({ following: userId })
+      .populate("follower", "fullName username avatar bio")
+      .sort({ createdAt: -1 });
+    const users = followers.map((f) => f.follower);
+    res.status(200).json({ success: true, count: users.length, data: users });
+  } catch (error) {
+    next(error);
+  }
+};
+
+export const getFollowing = async (req, res, next) => {
+  try {
+    const userId = req.params.userId || req.user._id;
+    const following = await Follow.find({ follower: userId })
+      .populate("following", "fullName username avatar bio")
+      .sort({ createdAt: -1 });
+    const users = following.map((f) => f.following);
+    res.status(200).json({ success: true, count: users.length, data: users });
+  } catch (error) {
+    next(error);
+  }
+};
+
+export const getUserPublicProfile = async (req, res, next) => {
+  try {
+    const user = await User.findById(req.params.userId).select(
+      "-password -otpCode"
+    );
+    if (!user) return next(errorHandler(404, "Không tìm thấy người dùng"));
+
+    let isFollowing = false;
+    if (req.user) {
+      const follow = await Follow.findOne({
+        follower: req.user._id,
+        following: user._id,
+      });
+      isFollowing = !!follow;
+    }
+    res
+      .status(200)
+      .json({ success: true, data: { ...user.toObject(), isFollowing } });
+  } catch (error) {
+    next(error);
+  }
+};
+
 export const toggleFollow = async (req, res, next) => {
   try {
     const currentUserId = req.user._id;
@@ -178,54 +257,54 @@ export const toggleFollow = async (req, res, next) => {
     });
 
     if (existingFollow) {
-      // --- UNFOLLOW ---
       await Follow.findByIdAndDelete(existingFollow._id);
-
-      // CẬP NHẬT CACHE COUNTER
-      // Giảm following của mình -> -1
       await User.findByIdAndUpdate(currentUserId, {
         $inc: { followingCount: -1 },
       });
-      // Giảm follower của họ -> -1
       await User.findByIdAndUpdate(targetUserId, {
         $inc: { followersCount: -1 },
       });
-
-      return res.status(200).json({
-        success: true,
-        message: "Đã hủy theo dõi",
-        isFollowing: false,
-      });
+      return res.status(200).json({ success: true, isFollowing: false });
     } else {
-      // --- FOLLOW ---
-      await Follow.create({
-        follower: currentUserId,
-        following: targetUserId,
-      });
-
-      // CẬP NHẬT CACHE COUNTER
-      // Tăng following của mình -> +1
+      await Follow.create({ follower: currentUserId, following: targetUserId });
       await User.findByIdAndUpdate(currentUserId, {
         $inc: { followingCount: 1 },
       });
-      // Tăng follower của họ -> +1
       await User.findByIdAndUpdate(targetUserId, {
         $inc: { followersCount: 1 },
       });
-
-      return res
-        .status(200)
-        .json({ success: true, message: "Đã theo dõi", isFollowing: true });
+      return res.status(200).json({ success: true, isFollowing: true });
     }
   } catch (error) {
     next(error);
   }
 };
 
-// =========================================================================
-// 4. ADMIN FEATURES
-// =========================================================================
+export const searchUsers = async (req, res, next) => {
+  try {
+    const { searchTerm } = req.query;
+    if (!searchTerm) return res.status(200).json({ success: true, data: [] });
 
+    const users = await User.find({
+      $or: [
+        { fullName: { $regex: searchTerm, $options: "i" } },
+        { username: { $regex: searchTerm, $options: "i" } },
+      ],
+      isBanned: false,
+      isVerified: true,
+    })
+      .select("fullName username avatar role bio followersCount")
+      .limit(20);
+
+    res.status(200).json({ success: true, data: users });
+  } catch (error) {
+    next(error);
+  }
+};
+
+// =========================================================================
+// 5. ADMIN FEATURES
+// =========================================================================
 export const getUsers = async (req, res, next) => {
   try {
     const startIndex = parseInt(req.query.startIndex) || 0;
@@ -243,17 +322,13 @@ export const getUsers = async (req, res, next) => {
     }
 
     const users = await User.find(filter)
-      .select("-password -otpCode") // An toàn
+      .select("-password -otpCode")
       .sort({ createdAt: sortDirection })
       .skip(startIndex)
       .limit(limit);
 
     const totalUsers = await User.countDocuments(filter);
-
-    res.status(200).json({
-      users,
-      totalUsers,
-    });
+    res.status(200).json({ users, totalUsers });
   } catch (error) {
     next(error);
   }
@@ -266,13 +341,10 @@ export const switchBan = async (req, res, next) => {
 
     const user = await User.findById(userId);
     if (!user) return next(errorHandler(404, "User not found"));
-
-    if (user.role === "admin") {
+    if (user.role === "admin")
       return next(errorHandler(403, "Không thể ban Admin"));
-    }
 
     user.isBanned = isBanned;
-
     if (isBanned) {
       user.banReason = banReason || "Vi phạm tiêu chuẩn cộng đồng";
       user.bannedUntil = bannedUntil ? new Date(bannedUntil) : null;
@@ -280,9 +352,7 @@ export const switchBan = async (req, res, next) => {
       user.banReason = undefined;
       user.bannedUntil = undefined;
     }
-
     await user.save();
-
     res.status(200).json({
       success: true,
       message: isBanned
@@ -290,6 +360,153 @@ export const switchBan = async (req, res, next) => {
         : `Đã mở khóa tài khoản ${user.username}`,
     });
   } catch (error) {
+    next(error);
+  }
+};
+
+export const getTopAuthors = async (req, res, next) => {
+  try {
+    const limit = parseInt(req.query.limit) || 10;
+    const authors = await User.find({
+      role: { $in: ["author", "admin"] },
+      isBanned: false,
+    })
+      .sort({ followersCount: -1 })
+      .limit(limit)
+      .populate("authorStats")
+      .select("-password");
+    res.status(200).json({ success: true, data: authors });
+  } catch (error) {
+    next(error);
+  }
+};
+
+export const toggleBookmark = async (req, res, next) => {
+  try {
+    const userId = req.user._id;
+    const { postId } = req.params;
+    const post = await Post.findById(postId);
+    if (!post) return next(errorHandler(404, "Bài viết không tồn tại"));
+
+    const existingBookmark = await Bookmark.findOne({
+      user: userId,
+      post: postId,
+    });
+
+    if (existingBookmark) {
+      await Bookmark.findByIdAndDelete(existingBookmark._id);
+      return res.status(200).json({
+        success: true,
+        message: "Đã xóa khỏi danh sách lưu",
+        isBookmarked: false,
+      });
+    } else {
+      await Bookmark.create({ user: userId, post: postId });
+      return res.status(200).json({
+        success: true,
+        message: "Đã lưu bài viết thành công",
+        isBookmarked: true,
+      });
+    }
+  } catch (error) {
+    next(error);
+  }
+};
+
+/**
+ * @desc    Lấy thống kê tổng quan cho Admin Dashboard (FINAL VERSION)
+ * @route   GET /api/users/analytics/growth
+ * @access  Admin
+ */
+export const getAdminDashboardStats = async (req, res, next) => {
+  try {
+    console.log("--------- ADMIN DASHBOARD STATS (DEBUG) ---------");
+    const days = 7;
+
+    // 1. Setup ngày tháng (Fix cứng giờ để tránh lệch Timezone)
+    const endDate = new Date();
+    endDate.setHours(23, 59, 59, 999);
+
+    const startDate = new Date();
+    startDate.setDate(startDate.getDate() - days);
+    startDate.setHours(0, 0, 0, 0);
+
+    // 2. Aggregate Data
+    const growthAgg = await User.aggregate([
+      {
+        $match: { createdAt: { $gte: startDate, $lte: endDate } }, // Bỏ filter role để test
+      },
+      {
+        $group: {
+          _id: { $dateToString: { format: "%Y-%m-%d", date: "$createdAt" } },
+          count: { $sum: 1 },
+        },
+      },
+      { $sort: { _id: 1 } },
+    ]);
+
+    console.log("📊 DB Data:", JSON.stringify(growthAgg));
+
+    // 3. Gap Filling (Logic mới an toàn hơn)
+    const chartData = [];
+
+    // Chuyển mảng DB thành Map để tra cứu
+    const dateMap = new Map();
+    growthAgg.forEach((item) => {
+      dateMap.set(item._id, item.count);
+    });
+
+    // Vòng lặp tạo 7 ngày
+    for (let i = days - 1; i >= 0; i--) {
+      const d = new Date();
+      d.setDate(d.getDate() - i);
+
+      // Quan trọng: Format ngày giống hệt Mongo ($dateToString format "%Y-%m-%d")
+      // Dùng hàm này để đảm bảo không bị lệch giờ UTC/Local
+      const dateStr = d.toISOString().split("T")[0];
+
+      const val = dateMap.get(dateStr) || 0;
+      const label = `${d.getDate()}/${d.getMonth() + 1}`;
+
+      // LOG KIỂM TRA TỪNG NGÀY
+      if (val > 0) console.log(`✅ Match found: ${dateStr} = ${val}`);
+
+      chartData.push({
+        value: val,
+        label: label,
+        dataPointText: val.toString(),
+        dataPointColor: "#b91c1c",
+        textColor: "#6b7280",
+      });
+    }
+
+    // 4. Stats Overview
+    const totalUsers = await User.countDocuments();
+    const totalPosts = await Post.countDocuments({
+      isDeleted: false,
+      status: "published",
+    });
+    const totalComments = await Comment.countDocuments({ isDeleted: false });
+    const likesAgg = await Post.aggregate([
+      { $match: { isDeleted: false } },
+      { $group: { _id: null, totalLikes: { $sum: "$likes" } } },
+    ]);
+    const totalLikes = likesAgg.length > 0 ? likesAgg[0].totalLikes : 0;
+
+    console.log(
+      "📈 Final Chart Data:",
+      JSON.stringify(chartData.map((c) => ({ d: c.label, v: c.value })))
+    );
+
+    res.status(200).json({
+      success: true,
+      data: {
+        chartData,
+        stats: { totalUsers, totalPosts, totalComments, totalLikes },
+      },
+    });
+  } catch (error) {
+    console.error("❌ Error:", error);
     next(error);
   }
 };

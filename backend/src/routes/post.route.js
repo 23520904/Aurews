@@ -1,39 +1,85 @@
-import { authorize, protectRoute } from "./../middlewares/auth.middlewares.js";
+// backend/src/routes/post.route.js
 import express from "express";
-import { adminUpdateStatus, createPost, deletePost, getPostDetail, getPosts, restorePost, toggleLike, updatePost } from "../controllers/post.controller.js";
-import { postImageUpload } from "../utils/fileUpload.js";
+import {
+  createPost,
+  getPosts,
+  getPostDetail,
+  deletePost,
+  updatePost,
+  getAuthorPosts,
+  toggleLike,
+  getMyPosts,
+  restorePost, // <--- Đảm bảo đã import hàm này
+} from "../controllers/post.controller.js";
+import {
+  protectRoute,
+  authorize,
+  optionalAuth,
+} from "../middlewares/auth.middlewares.js";
+import { postImageUpload, uploadEditorImage } from "../utils/fileUpload.js";
+
 const router = express.Router();
 
-// --- PUBLIC ROUTES (Ai cũng xem được) ---
-router.get("/", getPosts);
-router.get("/:slug", getPostDetail);
+// ==================================================================
+// 1. CÁC ROUTE TĨNH (STATIC ROUTES) - PHẢI ĐẶT LÊN ĐẦU
+// ==================================================================
 
-// --- PROTECTED ROUTES (Phải đăng nhập) ---
-router.use(protectRoute); // Mọi route bên dưới đều cần Login
+// Lấy danh sách bài viết (Public - có optional auth để check user)
+router.get("/", optionalAuth, getPosts);
 
-// 1. Tương tác (Reader/Author/Admin)
-router.post("/:postId/like", toggleLike);
+// Lấy bài viết CỦA TÔI (Protected) -> ĐẶT Ở ĐÂY ĐỂ KHÔNG BỊ NHẦN VỚI SLUG
+router.get("/me", protectRoute, getMyPosts);
 
-// 2. Quản lý bài viết (Author & Admin)
+// Lấy danh sách bài viết của author (API cũ, nếu còn dùng)
+router.get("/author/my-posts", protectRoute, getAuthorPosts);
+
+// Upload ảnh trong Editor
+router.post(
+  "/upload",
+  protectRoute,
+  authorize("admin", "author"),
+  uploadEditorImage,
+  (req, res) => {
+    if (!req.file) return res.status(400).json({ error: "No file uploaded" });
+    res.status(200).json({ url: req.file.path });
+  }
+);
+
+// ==================================================================
+// 2. CÁC ROUTE ĐỘNG (DYNAMIC ROUTES) - ĐẶT SAU CÙNG
+// ==================================================================
+
+// Lấy chi tiết bài viết (slug có thể là bất cứ chuỗi nào, nên phải đặt sau /me)
+router.get("/:slug", optionalAuth, getPostDetail);
+
+// Tạo bài viết
 router.post(
   "/",
-  authorize("author", "admin"),
-  postImageUpload, // Upload ảnh bìa
+  protectRoute,
+  authorize("admin", "author"),
+  postImageUpload,
   createPost
 );
 
+// Cập nhật bài viết
 router.put(
   "/:postId",
-  authorize("author", "admin"),
+  protectRoute,
+  authorize("admin", "author"),
   postImageUpload,
   updatePost
 );
 
-router.delete("/:postId", authorize("author", "admin"), deletePost);
+// Xóa bài viết
+router.delete("/:postId", protectRoute, deletePost);
 
-// 3. Admin Power (Duyệt bài, Khôi phục bài xóa)
-router.put("/:postId/status", authorize("admin"), adminUpdateStatus);
+// Like/Unlike
+router.post("/:postId/like", protectRoute, toggleLike);
 
-router.post("/:postId/restore", authorize("admin"), restorePost);
-
+router.put(
+  "/:postId/restore",
+  protectRoute,
+  authorize("admin", "author"),
+  restorePost
+);
 export default router;

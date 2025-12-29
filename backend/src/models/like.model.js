@@ -24,6 +24,11 @@ const likeSchema = new mongoose.Schema(
     unique: ["user", "post"],
   }
 );
+
+// HOOKS REMOVED: Logic moved to controller for better control and to prevent double-counting.
+// The controller now recalculates the count using countDocuments() which is self-healing.
+
+/*
 likeSchema.post("save", async function (doc) {
   try {
     // Tăng bộ đếm "likes" trên model Post
@@ -35,12 +40,16 @@ likeSchema.post("save", async function (doc) {
 
 likeSchema.post("remove", async function (doc) {
   try {
-    // Giảm bộ đếm "likes" trên model Post
-    await Post.findByIdAndUpdate(doc.post, { $inc: { likes: -1 } });
+    // Chỉ giảm lượt like nếu số lượng hiện tại > 0 để tránh số âm
+    await Post.findOneAndUpdate(
+      { _id: doc.post, likes: { $gt: 0 } },
+      { $inc: { likes: -1 } }
+    );
   } catch (error) {
-    console.error("Error in decrease like counter:", error);
+    console.error("Lỗi khi giảm bộ đếm like:", error);
   }
 });
+*/
 
 const Like = mongoose.model("Like", likeSchema);
 export default Like;

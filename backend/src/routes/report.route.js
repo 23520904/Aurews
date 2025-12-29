@@ -1,10 +1,10 @@
 import express from "express";
-import { protectRoute, authorize } from "../middleware/auth.middlewares.js";
 import {
   createReport,
   getAllReports,
   resolveReport,
 } from "../controllers/report.controller.js";
+import { authorize, protectRoute } from "../middlewares/auth.middlewares.js";
 
 const router = express.Router();
 

@@ -1,34 +1,57 @@
-import React, { useState } from "react";
-import { View, Text, StyleSheet, Alert } from "react-native";
-import { Image } from "expo-image";
-import { KeyboardAware } from "../../src/components/KeyboardAware";
-import { TextField } from "../../src/components/TextField";
+import { Alert, StyleSheet, Text, TouchableOpacity, View } from "react-native";
 import { Button } from "../../src/components/Button";
-import { SocialButton } from "../../src/components/SocialButton";
 import { Link, router } from "expo-router";
-import { useAuthStore } from "../../src/store/authStore";
+import { TextField } from "../../src/components/TextField";
+import { KeyboardAware } from "../../src/components/KeyboardAware";
+import { useAuthMutations } from "../../src/hooks/auth.hook";
+import { useState } from "react";
+import { Image } from "expo-image";
+import { COLORS, FONTS } from "../../src/constants/theme";
+import { Ionicons } from "@expo/vector-icons";
 
 export default function Login() {
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
+  const { login } = useAuthMutations();
+
+  const handleLogin = async () => {
+    if (!email || !password) {
+      Alert.alert("Thông báo", "Vui lòng nhập email và mật khẩu");
+      return;
+    }
+    try {
+      await login.mutateAsync({ email, password });
+      router.replace("/(tabs)");
+    } catch (error: any) {
+      Alert.alert("Đăng nhập thất bại", error.message || "Vui lòng thử lại");
+    }
+  };
 
   return (
     <KeyboardAware style={styles.safeArea}>
       <View style={styles.container}>
+        <View style={styles.header}>
+          <TouchableOpacity
+            onPress={() => router.back()}
+            accessibilityRole="button"
+            accessibilityLabel="Quay lại"
+          >
+            <Ionicons name="arrow-back" size={24} color={COLORS.secondary} />
+          </TouchableOpacity>
+        </View>
         <Image
-          source={require("../../assets/images/logo.svg")}
+          source={require("../../assets/images/logo.png")}
           style={styles.logo}
           contentFit="contain"
-          accessibilityLabel="Aurews logo"
         />
 
-        <Text style={styles.title}>Welcome back to Aurews</Text>
-        <Text style={styles.subtitle}>Sign in to continue</Text>
+        <Text style={styles.title}>Chào mừng trở lại!</Text>
+        <Text style={styles.subtitle}>Đăng nhập để tiếp tục</Text>
 
         <View style={styles.form}>
           <TextField
             label="Email"
-            placeholder="you@email.com"
+            placeholder="ví dụ: admin@test.com"
             value={email}
             onChangeText={setEmail}
             keyboardType="email-address"
@@ -37,40 +60,48 @@ export default function Login() {
           />
 
           <TextField
-            label="Password"
-            placeholder="••••••••"
+            label="Mật khẩu"
+            placeholder="Nhập mật khẩu của bạn"
             value={password}
             onChangeText={setPassword}
             isPassword
             icon="lock"
           />
 
+          <View style={styles.forgotPasswordContainer}>
+            <Link href="/(auth)/forgot-password" asChild>
+              <TouchableOpacity>
+                <Text style={styles.forgotPasswordText}>Quên mật khẩu?</Text>
+              </TouchableOpacity>
+            </Link>
+          </View>
+
           <Button
-            title={isLoading ? "Signing in..." : "Sign in"}
+            title={login.isPending ? "Processing..." : "Sign In"}
             onPress={handleLogin}
-            style={styles.signIn}
-            disabled={isLoading}
+            style={styles.button}
+            disabled={login.isPending}
+            variant="primary"
           />
 
-          <View style={styles.linkRow}>
-            <Link href="/(auth)/forgot-password" style={styles.link}>
-              <Text style={styles.linkText}>Forgot password?</Text>
+          <TouchableOpacity
+            onPress={() => router.replace("/(tabs)")}
+            style={{ alignSelf: "center", marginBottom: 16 }}
+            accessibilityRole="button"
+            accessibilityLabel="Tiếp tục duyệt ẩn danh"
+          >
+            <Text style={{ color: COLORS.primary, ...FONTS.medium }}>
+              Continue as guest
+            </Text>
+          </TouchableOpacity>
+
+          <View style={styles.footer}>
+            <Text style={styles.footerText}>No account yet? </Text>
+            <Link href="/(auth)/register" asChild>
+              <TouchableOpacity style={styles.link}>
+                <Text style={styles.linkText}>Sign up</Text>
+              </TouchableOpacity>
             </Link>
-
-            <Link href="/(auth)/register" style={styles.link}>
-              <Text style={[styles.linkText, styles.register]}>Create account</Text>
-            </Link>
-          </View>
-
-          <View style={styles.orRow}>
-            <View style={styles.line} />
-            <Text style={styles.orText}>OR</Text>
-            <View style={styles.line} />
-          </View>
-
-          <View style={styles.socialRow}>
-            <SocialButton type="google" onPress={() => {}} style={{ marginRight: 12 }} />
-            <SocialButton type="facebook" onPress={() => {}} />
           </View>
         </View>
       </View>
@@ -79,77 +110,42 @@ export default function Login() {
 }
 
 const styles = StyleSheet.create({
-  safeArea: {
-    backgroundColor: "#ffffff",
-    flex: 1,
-  },
+  safeArea: { backgroundColor: COLORS.background, flex: 1 },
   container: {
     flex: 1,
     paddingHorizontal: 24,
-    paddingTop: 32,
+    paddingTop: 60,
     alignItems: "center",
-    
   },
-  logo: {
-    width: 200,
-    height: 200,
-    marginBottom: 18,
-
+  header: {
+    width: "100%",
+    paddingHorizontal: 8,
+    paddingBottom: 12,
+    alignItems: "flex-start",
   },
+  logo: { width: 100, height: 100, marginBottom: 24 },
   title: {
-    fontSize: 24,
-    fontWeight: "800",
-    color: "#0f172a",
+    fontSize: 28,
+    color: COLORS.secondary,
+    marginBottom: 8,
+    ...FONTS.heavy,
   },
   subtitle: {
-    marginTop: 6,
-    fontSize: 14,
-    color: "#64748b",
-    marginBottom: 24,
+    fontSize: 16,
+    color: COLORS.textGray,
+    marginBottom: 32,
+    ...FONTS.regular,
   },
-  form: {
-    width: "100%",
-    marginTop: 8,
-  },
-  signIn: {
-    marginTop: 8,
-  },
-  link:{paddingVertical: 8,
-    paddingHorizontal: 6,
-    borderRadius: 8,
-    alignItems: "center",
-    justifyContent: "center",},
-  linkRow: {
+  form: { width: "100%" },
+  forgotPasswordContainer: { alignItems: "flex-end", marginBottom: 24 },
+  forgotPasswordText: { color: COLORS.primary, fontSize: 14, ...FONTS.medium },
+  button: { marginBottom: 24 },
+  footer: {
     flexDirection: "row",
-    justifyContent: "space-between",
-    marginTop: 12,
-  },
-  linkText: {
-    color: "#7E000B",
-    fontWeight: "600",
-  },
-  register: {
-    textDecorationLine: "underline",
-  },
-  orRow: {
-    marginTop: 22,
-    flexDirection: "row",
-    alignItems: "center",
     justifyContent: "center",
+    alignItems: "center",
   },
-  line: {
-    flex: 1,
-    height: 1,
-    backgroundColor: "#e2e8f0",
-    marginHorizontal: 12,
-    borderRadius: 1,
-  },
-  orText: {
-    color: "#94a3b8",
-    fontWeight: "700",
-  },
-  socialRow: {
-    marginTop: 16,
-    flexDirection: "row",
-  },
+  footerText: { color: COLORS.textGray, fontSize: 14 },
+  link: { padding: 4 },
+  linkText: { color: COLORS.primary, ...FONTS.bold },
 });

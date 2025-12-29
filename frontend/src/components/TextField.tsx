@@ -10,10 +10,10 @@ import {
   Platform,
   StyleSheet,
 } from "react-native";
-import Animated, { 
-  useAnimatedStyle, 
+import Animated, {
+  useAnimatedStyle,
   withSpring,
-  useSharedValue 
+  useSharedValue,
 } from "react-native-reanimated";
 
 interface TextFieldProps extends TextInputProps {
@@ -53,14 +53,15 @@ export const TextField = React.forwardRef<TextInput, TextFieldProps>(
       style,
     ];
 
-    const shadowStyle = isFocused && Platform.OS === "ios"
-      ? {
-          shadowColor: "#7E000B",
-          shadowOffset: { width: 0, height: 2 },
-          shadowOpacity: 0.1,
-          shadowRadius: 8,
-        }
-      : {};
+    const shadowStyle =
+      isFocused && Platform.OS === "ios"
+        ? {
+            shadowColor: "#7E000B",
+            shadowOffset: { width: 0, height: 2 },
+            shadowOpacity: 0.1,
+            shadowRadius: 8,
+          }
+        : {};
 
     return (
       <View style={styles.container}>
@@ -70,15 +71,13 @@ export const TextField = React.forwardRef<TextInput, TextFieldProps>(
         <View style={styles.inputContainer}>
           {/* Left Icon */}
           {icon && (
-            <Animated.View style={[styles.leftIconContainer, iconAnimatedStyle]}>
-              <MaterialIcons 
-                name={icon} 
-                size={22} 
-                color={
-                  error ? "#dc2626" : 
-                  isFocused ? "#7E000B" : 
-                  "#94a3b8"
-                } 
+            <Animated.View
+              style={[styles.leftIconContainer, iconAnimatedStyle]}
+            >
+              <MaterialIcons
+                name={icon}
+                size={22}
+                color={error ? "#dc2626" : isFocused ? "#7E000B" : "#94a3b8"}
               />
             </Animated.View>
           )}
@@ -92,6 +91,8 @@ export const TextField = React.forwardRef<TextInput, TextFieldProps>(
             autoCapitalize="none"
             onFocus={handleFocus}
             onBlur={handleBlur}
+            accessibilityLabel={label || props.placeholder}
+            accessibilityRole={isPassword ? "none" : "text"} // Password fields shouldn't be announced as text sometimes
             {...props}
           />
 
@@ -101,11 +102,15 @@ export const TextField = React.forwardRef<TextInput, TextFieldProps>(
               onPress={() => setIsSecure(!isSecure)}
               style={styles.rightIconButton}
               activeOpacity={0.7}
+              accessibilityRole="button"
+              accessibilityLabel={isSecure ? "Show password" : "Hide password"}
             >
-              <View style={[
-                styles.toggleIconContainer,
-                isFocused && styles.toggleIconContainerFocused
-              ]}>
+              <View
+                style={[
+                  styles.toggleIconContainer,
+                  isFocused && styles.toggleIconContainerFocused,
+                ]}
+              >
                 <MaterialIcons
                   name={isSecure ? "visibility-off" : "visibility"}
                   size={22}
@@ -127,6 +132,8 @@ export const TextField = React.forwardRef<TextInput, TextFieldProps>(
     );
   }
 );
+
+TextField.displayName = "TextField";
 
 const styles = StyleSheet.create({
   container: {

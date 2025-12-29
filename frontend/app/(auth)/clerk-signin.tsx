@@ -1,12 +1,10 @@
-import { SignIn } from "@clerk/clerk-react";
 import React from "react";
-import { View, StyleSheet } from "react-native";
+import { View, StyleSheet, Text } from "react-native";
 
 export default function ClerkSignIn() {
   return (
     <View style={styles.container}>
-      {/* Clerk-hosted SignIn UI handles social providers and email */}
-      <SignIn />
+      <Text>Clerk SignIn is not available on native. Use app login.</Text>
     </View>
   );
 }

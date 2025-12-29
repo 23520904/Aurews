@@ -1,6 +1,12 @@
 {
-  "files": [],
-  "references": [
-    { "path": "./frontend" }
-  ]
+  "extends": "./frontend/node_modules/expo/tsconfig.base.json",
+  "compilerOptions": {
+    "strict": true,
+    "baseUrl": ".",
+    "ignoreDeprecations": "6.0",
+    "paths": {
+      "@/*": ["./*"]
+    }
+  },
+  "include": ["**/*.ts", "**/*.tsx", ".expo/types/**/*.ts", "expo-env.d.ts"]
 }

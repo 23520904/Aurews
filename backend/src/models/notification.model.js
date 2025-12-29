@@ -54,13 +54,13 @@ const notificationSchema = new mongoose.Schema(
 );
 
 // Tự động populate sender (Avatar + Tên) để hiển thị ngay trên list thông báo
-notificationSchema.pre(/^find/, function (next) {
-  this.populate({
-    path: "sender",
-    select: "fullName avatar",
-  });
-  next();
-});
+// notificationSchema.pre(/^find/, function (next) {
+//   this.populate({
+//     path: "sender",
+//     select: "fullName avatar",
+//   });
+//   next();
+// });
 
 const Notification = mongoose.model("Notification", notificationSchema);
 export default Notification;

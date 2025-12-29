@@ -46,38 +46,6 @@ const commentSchema = new mongoose.Schema(
   },
   { timestamps: true, collection: "comments" }
 );
-// Tự động populate thông tin user khi query comment (Tiện lợi cho Frontend)
-// Lưu ý: Chỉ lấy fullName và avatar để nhẹ JSON
-commentSchema.pre(/^find/, function (next) {
-  this.populate({
-    path: "user",
-    select: "fullName avatar",
-  });
-  next();
-});
-commentSchema.post("save", async function (doc) {
-  try {
-    // Tăng bộ đếm "comments" trên model Post
-    if (this._wasNew) {
-      // Tăng bộ đếm "comments" trên model Post
-      await Post.findByIdAndUpdate(doc.post, { $inc: { comments: 1 } });
-    }
-  } catch (error) {
-    console.error("Error in increase comment counter:", error);
-  }
-});
-commentSchema.post("remove", async function (doc) {
-  try {
-    // Giảm bộ đếm "comments" trên model Post
-    await Post.findByIdAndUpdate(doc.post, { $inc: { comments: -1 } });
 
-    // (Nâng cao): Xóa tất cả các bình luận con (replies)
-    if (!doc.parentComment) {
-      await mongoose.model("Comment").deleteMany({ parentComment: doc._id });
-    }
-  } catch (error) {
-    console.error("Error in decrease comment counter:", error);
-  }
-});
 const Comment = mongoose.model("Comment", commentSchema);
 export default Comment;

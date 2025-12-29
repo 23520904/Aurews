@@ -1,45 +1,60 @@
-import React, { useState } from "react";
-import {
-  View,
-  Text,
-  StyleSheet,
-  Modal,
-  TouchableOpacity,
-  Pressable,
-} from "react-native";
-import { Image } from "expo-image";
+import { Link, router } from "expo-router";
+import { useState } from "react";
+import { Alert, StyleSheet, Text, TouchableOpacity, View } from "react-native";
 import { KeyboardAware } from "../../src/components/KeyboardAware";
+import { Image } from "expo-image";
 import { TextField } from "../../src/components/TextField";
 import { Button } from "../../src/components/Button";
-import { Link } from "expo-router";
 
 export default function ForgotPassword() {
   const [email, setEmail] = useState("");
-  const [isSent, setIsSent] = useState(false);
+  const [isLoading, setIsLoading] = useState(false);
 
-  const handleSend = () => {
-    // UI-only: show confirmation modal (backend wiring is next)
-    setIsSent(true);
+  const handleResetPassword = async () => {
+    if (!email.trim()) {
+      Alert.alert("Lỗi", "Vui lòng nhập Email");
+      return;
+    }
+
+    setIsLoading(true);
+
+    // --- BẮT ĐẦU MOCK ---
+    try {
+      // Giả vờ đợi 1.5s
+      await new Promise((resolve) => setTimeout(resolve, 1500));
+
+      // Luôn báo thành công
+      Alert.alert(
+        "Đã gửi Email (Giả lập)",
+        `Một email khôi phục mật khẩu giả đã được gửi tới ${email}`,
+        [{ text: "Quay lại Login", onPress: () => router.back() }]
+      );
+    } catch (error: any) {
+      Alert.alert("Thất bại", "Có lỗi xảy ra");
+    } finally {
+      setIsLoading(false);
+    }
+    // --- KẾT THÚC MOCK ---
   };
 
   return (
     <KeyboardAware style={styles.safeArea}>
       <View style={styles.container}>
         <Image
-          source={require("../../assets/images/logo.svg")}
+          source={require("../../assets/images/logo.png")}
           style={styles.logo}
           contentFit="contain"
-          accessibilityLabel="Aurews logo"
         />
 
-        <Text style={styles.title}>Forgot password</Text>
+        <Text style={styles.title}>Quên mật khẩu?</Text>
         <Text style={styles.subtitle}>
-          Enter your email and we'll send a password reset link.
+          Nhập địa chỉ email của bạn và chúng tôi sẽ gửi liên kết đặt lại mật
+          khẩu.
         </Text>
 
         <View style={styles.form}>
           <TextField
-            label="Email"
+            label="Địa chỉ Email"
             placeholder="you@email.com"
             value={email}
             onChangeText={setEmail}
@@ -49,37 +64,19 @@ export default function ForgotPassword() {
           />
 
           <Button
-            title="Send reset link"
-            onPress={handleSend}
-            style={styles.sendButton}
+            title={isLoading ? "Đang gửi..." : "Gửi liên kết đặt lại"}
+            onPress={handleResetPassword}
+            style={styles.button}
+            disabled={isLoading}
           />
 
-          <View style={styles.linkRow}>
-            <Link href="/(auth)/login" style={styles.link}>
-              <Text style={[styles.linkText, styles.login]}>Back to sign in</Text>
-            </Link>
-          </View>
+          <Link href="/(auth)/login" asChild>
+            <TouchableOpacity style={styles.backLink}>
+              <Text style={styles.backLinkText}>← Quay lại Đăng nhập</Text>
+            </TouchableOpacity>
+          </Link>
         </View>
       </View>
-
-      {/* Success modal */}
-      <Modal visible={isSent} transparent animationType="slide" onRequestClose={() => setIsSent(false)}>
-        <View style={styles.modalOverlay}>
-          <View style={styles.modalContent}>
-            <Text style={styles.modalTitle}>Check your email</Text>
-            <Text style={styles.modalBody}>
-              If the email is registered, we'll send a password reset link. Please check your inbox.
-            </Text>
-
-            <View style={styles.modalActions}>
-              <Button title="Close" variant="outline" onPress={() => setIsSent(false)} style={{ marginRight: 12, flex: 1 }} />
-              <Link href="/(auth)/login" style={{ flex: 1 }}>
-                <Button title="Sign in" onPress={() => {}} />
-              </Link>
-            </View>
-          </View>
-        </View>
-      </Modal>
     </KeyboardAware>
   );
 }
@@ -92,82 +89,41 @@ const styles = StyleSheet.create({
   container: {
     flex: 1,
     paddingHorizontal: 24,
-    paddingTop: 32,
+    paddingTop: 40,
     alignItems: "center",
   },
   logo: {
-    width: 200,
-    height: 200,
-    marginBottom: 18,
+    width: 100,
+    height: 100,
+    marginBottom: 24,
   },
   title: {
     fontSize: 24,
     fontWeight: "800",
     color: "#0f172a",
+    marginBottom: 8,
   },
   subtitle: {
-    marginTop: 6,
     fontSize: 14,
     color: "#64748b",
-    marginBottom: 24,
     textAlign: "center",
+    marginBottom: 32,
+    lineHeight: 20,
   },
   form: {
     width: "100%",
+  },
+  button: {
     marginTop: 8,
   },
-  sendButton: {
-    marginTop: 8,
+  backLink: {
+    marginTop: 24,
+    alignSelf: "center",
+    padding: 8,
   },
-  link: {
-    paddingVertical: 8,
-    paddingHorizontal: 6,
-    borderRadius: 8,
-    alignItems: "center",
-    justifyContent: "center",
-  },
-  linkRow: {
-    flexDirection: "row",
-    justifyContent: "flex-start",
-    alignItems: "center",
-    marginTop: 12,
-  },
-  linkText: {
-    color: "#64748b",
-    fontWeight: "600",
-  },
-  login: {
-    color: "#7E000B",
-    textDecorationLine: "underline",
-  },
-
-  /* Modal styles (consistent with other screens) */
-  modalOverlay: {
-    flex: 1,
-    backgroundColor: "rgba(15, 23, 42, 0.5)",
-    justifyContent: "center",
-    padding: 24,
-  },
-  modalContent: {
-    backgroundColor: "#ffffff",
-    padding: 18,
-    borderRadius: 12,
-  },
-  modalTitle: {
-    fontSize: 18,
-    fontWeight: "800",
-    color: "#0f172a",
-    textAlign: "center",
-  },
-  modalBody: {
-    marginTop: 12,
+  backLinkText: {
     color: "#64748b",
     fontSize: 14,
-    textAlign: "center",
-  },
-  modalActions: {
-    marginTop: 16,
-    flexDirection: "row",
-    justifyContent: "space-between",
+    fontWeight: "600",
   },
 });

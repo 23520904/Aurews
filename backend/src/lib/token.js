@@ -7,7 +7,7 @@ export const generateTokens = (userId) => {
     expiresIn: "15m",
   });
   const refreshToken = jwt.sign({ userId }, process.env.JWT_REFRESH_SECRET, {
-    expiresIn: "7d",
+    expiresIn: "365d",
   });
   return { accessToken, refreshToken };
 };
@@ -19,6 +19,6 @@ export const storeRefreshToken = async (userId, refreshToken) => {
     `refresh_token:${userId}`,
     refreshToken,
     "EX",
-    7 * 24 * 60 * 60
+    365 * 24 * 60 * 60
   );
 };

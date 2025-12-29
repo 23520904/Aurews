@@ -1,8 +1,8 @@
 // src/components/ui/Button.tsx
-import { 
-  ActivityIndicator, 
-  Text, 
-  TouchableOpacity, 
+import {
+  ActivityIndicator,
+  Text,
+  TouchableOpacity,
   TouchableOpacityProps,
   Platform,
   StyleSheet,
@@ -35,9 +35,16 @@ export const Button = ({
     onPress?.(e);
   };
 
-  const getButtonStyle = (): (ViewStyle | {opacity: number})[] => {
-    const baseStyle: (ViewStyle | {opacity: number})[] = [styles.button];
-    
+  const getButtonStyle = (): (ViewStyle | { opacity: number })[] => {
+    const baseStyle: (ViewStyle | { opacity: number })[] = [styles.button];
+
+    // Remove padding from container if using gradient (gradient will handle padding)
+    if (useGradient && variant === "primary") {
+       // We'll override padding in the inline style below or create a separate style
+    } else {
+       baseStyle.push(styles.buttonPadding);
+    }
+
     if (variant === "primary") {
       baseStyle.push(styles.buttonPrimary);
     } else if (variant === "outline") {
@@ -53,15 +60,16 @@ export const Button = ({
     return baseStyle;
   };
 
-  const shadowStyle = variant === "primary" && Platform.OS === "ios" 
-    ? {
-        shadowColor: "#7E000B",
-        shadowOffset: { width: 0, height: 6 },
-        shadowOpacity: 0.35,
-        shadowRadius: 10,
-        elevation: 8,
-      }
-    : {};
+  const shadowStyle =
+    variant === "primary" && Platform.OS === "ios"
+      ? {
+          shadowColor: "#7E000B",
+          shadowOffset: { width: 0, height: 6 },
+          shadowOpacity: 0.35,
+          shadowRadius: 10,
+          elevation: 8,
+        }
+      : {};
 
   const ButtonContent = () => (
     <>
@@ -71,13 +79,15 @@ export const Button = ({
           size="small"
         />
       ) : (
-        <Text style={
-          variant === "primary" 
-            ? styles.textPrimary 
-            : variant === "outline"
-            ? styles.textOutline
-            : styles.textGhost
-        }>
+        <Text
+          style={
+            variant === "primary"
+              ? styles.textPrimary
+              : variant === "outline"
+                ? styles.textOutline
+                : styles.textGhost
+          }
+        >
           {title}
         </Text>
       )}
@@ -91,14 +101,20 @@ export const Button = ({
         activeOpacity={0.8}
         disabled={isLoading || disabled}
         onPress={handlePress}
-        style={[...getButtonStyle(), shadowStyle, style]}
+        style={[...getButtonStyle(), shadowStyle, { paddingVertical: 0, paddingHorizontal: 0 }, style]} // Remove padding here
+        accessibilityRole="button"
+        accessibilityLabel={title}
+        accessibilityState={{
+          disabled: disabled || isLoading,
+          busy: isLoading,
+        }}
         {...props}
       >
         <LinearGradient
           colors={["#7E000B", "#A00010", "#7E000B"]}
           start={{ x: 0, y: 0 }}
           end={{ x: 1, y: 0 }}
-          style={styles.gradient}
+          style={[styles.gradient, styles.buttonPadding]} // Add padding here
         >
           <ButtonContent />
         </LinearGradient>
@@ -112,6 +128,9 @@ export const Button = ({
       disabled={isLoading || disabled}
       onPress={handlePress}
       style={[...getButtonStyle(), shadowStyle, style]}
+      accessibilityRole="button"
+      accessibilityLabel={title}
+      accessibilityState={{ disabled: disabled || isLoading, busy: isLoading }}
       {...props}
     >
       <ButtonContent />
@@ -122,12 +141,19 @@ export const Button = ({
 const styles = StyleSheet.create({
   button: {
     width: "100%",
-    paddingVertical: 16,
     borderRadius: 16,
     flexDirection: "row",
     justifyContent: "center",
     alignItems: "center",
     overflow: "hidden",
+  },
+  buttonPadding: {
+    paddingVertical: 16,
+    paddingHorizontal: 16,
+    alignItems: "center",
+    justifyContent: "center",
+    width: "100%",
+    flexDirection: "row",
   },
   buttonPrimary: {
     backgroundColor: "#7E000B",
@@ -163,7 +189,5 @@ const styles = StyleSheet.create({
   gradient: {
     width: "100%",
     height: "100%",
-    alignItems: "center",
-    justifyContent: "center",
   },
 });

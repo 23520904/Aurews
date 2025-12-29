@@ -9,7 +9,7 @@ export const setCookies = (res, accessToken, refreshToken) => {
     httpOnly: true, //prevent XSS attacks
     secure: process.env.NODE_ENV === "production",
     sameSite: "strict", //prevent CSRF acttacks
-    maxAge: 7 * 24 * 60 * 60 * 1000,
+    maxAge: 365 * 24 * 60 * 60 * 1000,
   });
 };
 export const clearCookies = (res) => {

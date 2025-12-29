@@ -1,13 +1,11 @@
 import React from "react";
-import { View, StyleSheet } from "react-native";
-import { SignUp } from "@clerk/clerk-react";
+import { View, StyleSheet, Text } from "react-native";
 
 
 export default function ClerkSignUp() {
   return (
     <View style={styles.container}>
-      {/* Clerk-hosted SignUp UI */}
-      <SignUp />
+      <Text>Clerk SignUp is not available on native. Use app register.</Text>
     </View>
   );
 }
