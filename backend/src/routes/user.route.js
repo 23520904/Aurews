@@ -19,6 +19,7 @@ import {
   toggleBookmark,
   searchUsers,
   getAdminDashboardStats,
+  getAuthorStats,
 } from "../controllers/user.controller.js";
 import { uploadAvatar } from "../utils/fileUpload.js"; // <--- SỬA LẠI ĐƯỜNG DẪN ĐÚNG
 import { authorize, protectRoute } from "../middlewares/auth.middlewares.js";
@@ -28,6 +29,10 @@ const router = express.Router();
 // PUBLIC ROUTE (Đặt trên router.use(protectRoute))
 router.get("/top-authors", getTopAuthors);
 router.get("/search", searchUsers); // Public Search Route
+router.get("/:userId/profile", getUserPublicProfile);
+
+router.get("/:userId/followers", getFollowers);
+router.get("/:userId/following", getFollowing);
 // Middleware chung
 router.use(protectRoute);
 
@@ -48,9 +53,7 @@ console.log("Check function:", getNotifications);
 
 router.get("/me/notifications", getNotifications);
 router.put("/me/notifications/read", markNotificationsRead);
-router.get("/:userId/profile", getUserPublicProfile);
-router.get("/:userId/followers", getFollowers);
-router.get("/:userId/following", getFollowing);
+
 router.post("/:userId/follow", toggleFollow);
 
 // --- ADMIN ROUTES ---
@@ -60,4 +63,6 @@ router.put("/:userId/ban", authorize("admin"), switchBan);
 router.post("/me/bookmarks/:postId", toggleBookmark); // [POST] để thực hiện hành động toggle
 
 router.get("/analytics/growth", authorize("admin"), getAdminDashboardStats);
+
+router.get("/author/stats", authorize("author", "admin"), getAuthorStats);
 export default router;

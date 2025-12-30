@@ -5,6 +5,7 @@ import { KeyboardAware } from "../../src/components/KeyboardAware";
 import { Image } from "expo-image";
 import { TextField } from "../../src/components/TextField";
 import { Button } from "../../src/components/Button";
+import { COLORS } from "../../src/constants/theme";
 
 export default function ForgotPassword() {
   const [email, setEmail] = useState("");
@@ -25,8 +26,8 @@ export default function ForgotPassword() {
 
       // Luôn báo thành công
       Alert.alert(
-        "Đã gửi Email (Giả lập)",
-        `Một email khôi phục mật khẩu giả đã được gửi tới ${email}`,
+        "Đã gửi Email",
+        `Một email khôi phục mật khẩu giả đã được gửi tới ${email}. Hãy donate 36k cho admin để được đổi mật khẩu`,
         [{ text: "Quay lại Login", onPress: () => router.back() }]
       );
     } catch (error: any) {
@@ -40,11 +41,12 @@ export default function ForgotPassword() {
   return (
     <KeyboardAware style={styles.safeArea}>
       <View style={styles.container}>
-        <Image
-          source={require("../../assets/images/logo.png")}
-          style={styles.logo}
-          contentFit="contain"
-        />
+        {/* LOGO TEXT */}
+        <View style={styles.logoContainer}>
+          <Text style={styles.logoText}>
+            Aurews<Text style={styles.logoDot}>.</Text>
+          </Text>
+        </View>
 
         <Text style={styles.title}>Quên mật khẩu?</Text>
         <Text style={styles.subtitle}>
@@ -125,5 +127,20 @@ const styles = StyleSheet.create({
     color: "#64748b",
     fontSize: 14,
     fontWeight: "600",
+  },
+
+  logoContainer: {
+    marginBottom: 32,
+    marginTop: 10,
+    alignItems: "center",
+  },
+  logoText: {
+    fontSize: 42,
+    fontWeight: "900",
+    color: COLORS.secondary,
+    letterSpacing: -1.5,
+  },
+  logoDot: {
+    color: COLORS.primary,
   },
 });

@@ -190,3 +190,38 @@ export interface PostsResponse {
   currentPage?: number;
   totalPages?: number;
 }
+
+// Định nghĩa cấu trúc của 1 object Preference (khớp với Backend Model)
+export interface UserPreferences {
+  _id: string;
+  user: string;
+  favoriteCategories: string[];
+  theme: "light" | "dark" | "system";
+  emailNotifications: boolean;
+  pushNotifications: boolean;
+}
+
+// Định nghĩa cấu trúc phản hồi từ API (khớp với res.json của Backend)
+export interface PreferencesResponse {
+  success: boolean;
+  data: UserPreferences;
+}
+
+export type ThemeMode = "light" | "dark" | "system";
+
+export interface AuthorStatsResponse {
+  success: boolean;
+  data: {
+    stats: {
+      totalViews: number;
+      totalLikes: number;
+      totalComments: number;
+      totalPosts: number;
+      followerCount: number; // <--- BẮT BUỘC PHẢI CÓ DÒNG NÀY
+    };
+    chartData: {
+      label: string;
+      value: number;
+    }[];
+  };
+}

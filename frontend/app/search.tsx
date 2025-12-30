@@ -7,10 +7,12 @@ import {
   TouchableOpacity,
   ActivityIndicator,
   FlatList,
+  Keyboard,
+  TouchableWithoutFeedback,
+  Dimensions,
 } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
 import { useTheme } from "../src/hooks/theme.hook";
-import { FONTS } from "../src/constants/theme";
 import { usePosts } from "../src/hooks/post.hook";
 import { useSearchUsers } from "../src/hooks/user.hook";
 import { Ionicons } from "@expo/vector-icons";
@@ -18,7 +20,11 @@ import { useRouter } from "expo-router";
 import { Post, User } from "../src/types/type";
 import { track } from "../src/lib/analytics";
 import { Image } from "expo-image";
+import Animated, { FadeInDown, Layout } from "react-native-reanimated";
 
+const { width } = Dimensions.get("window");
+
+// Hook debounce giữ nguyên
 function useDebouncedValue<T>(value: T, delay = 350) {
   const [debounced, setDebounced] = useState(value);
   useEffect(() => {
@@ -29,7 +35,7 @@ function useDebouncedValue<T>(value: T, delay = 350) {
 }
 
 export default function SearchScreen() {
-  const colors = useTheme();
+  const theme = useTheme();
   const router = useRouter();
   const [query, setQuery] = useState("");
   const debounced = useDebouncedValue(query);
@@ -59,286 +65,563 @@ export default function SearchScreen() {
     [usersQuery.data]
   );
 
-  const renderPostItem = ({ item }: { item: Post }) => (
-    <TouchableOpacity
-      style={[
-        styles.item,
-        { borderColor: colors.border, backgroundColor: colors.card },
-      ]}
-      onPress={() => {
-        track("search_result_selected", { postId: item._id, slug: item.slug });
-        router.push(`/post/${item.slug}` as any);
-      }}
+  // --- RENDER ITEMS ---
+
+  const renderPostItem = ({ item, index }: { item: Post; index: number }) => (
+    <Animated.View
+      entering={FadeInDown.delay(index * 50).springify()}
+      layout={Layout.springify()}
     >
-      <View style={{ flexDirection: "row", gap: 12 }}>
+      <TouchableOpacity
+        style={[
+          styles.postItem,
+          {
+            backgroundColor: theme.card,
+            shadowColor: "#000", // Fix lỗi theme.shadow
+          },
+        ]}
+        onPress={() => {
+          track("search_result_selected", {
+            postId: item._id,
+            slug: item.slug,
+          });
+          router.push(`/post/${item.slug}` as any);
+        }}
+        activeOpacity={0.8}
+      >
         <Image
           source={{ uri: item.thumbnail }}
-          style={{ width: 80, height: 60, borderRadius: 8 }}
+          style={styles.postThumb}
+          contentFit="cover"
+          transition={300}
+        />
+        <View style={styles.postInfo}>
+          <View>
+            <Text
+              style={[styles.postCategory, { color: theme.primary }]}
+              numberOfLines={1}
+            >
+              {item.category}
+            </Text>
+            <Text
+              style={[styles.postTitle, { color: theme.text }]}
+              numberOfLines={2}
+            >
+              {item.title}
+            </Text>
+          </View>
+
+          <View style={styles.postFooter}>
+            <Image
+              source={{
+                uri:
+                  (item.authorUser as any)?.avatar ||
+                  "https://avatar.iran.liara.run/public",
+              }}
+              style={{ width: 16, height: 16, borderRadius: 8, marginRight: 6 }}
+            />
+            <Text style={[styles.postMeta, { color: theme.textSecondary }]}>
+              {(item.authorUser as any)?.fullName || "Tác giả"}
+            </Text>
+            <Text style={[styles.postMeta, { color: theme.textSecondary }]}>
+              {" • "}
+              {new Date(item.createdAt).toLocaleDateString("vi-VN", {
+                day: "2-digit",
+                month: "2-digit",
+              })}
+            </Text>
+          </View>
+        </View>
+      </TouchableOpacity>
+    </Animated.View>
+  );
+
+  const renderUserItem = ({ item, index }: { item: User; index: number }) => (
+    <Animated.View entering={FadeInDown.delay(index * 50).springify()}>
+      <TouchableOpacity
+        style={[
+          styles.userItem,
+          {
+            backgroundColor: theme.card,
+            shadowColor: "#000",
+          },
+        ]}
+        onPress={() => {
+          router.push(`/user/${item._id}` as any);
+        }}
+        activeOpacity={0.7}
+      >
+        <Image
+          source={{
+            uri: item.avatar || "https://avatar.iran.liara.run/public",
+          }}
+          style={styles.avatar}
           contentFit="cover"
         />
         <View style={{ flex: 1 }}>
-          <Text
-            style={[styles.itemTitle, { color: colors.text }]}
-            numberOfLines={2}
-          >
-            {item.title}
+          <Text style={[styles.userName, { color: theme.text }]}>
+            {item.fullName}
           </Text>
-          <Text style={[styles.itemMeta, { color: colors.textSecondary }]}>
-            {item.category} • {new Date(item.createdAt).toLocaleDateString()}
+          <Text style={[styles.userHandle, { color: theme.textSecondary }]}>
+            @{item.username}
           </Text>
         </View>
-      </View>
-    </TouchableOpacity>
-  );
 
-  const renderUserItem = ({ item }: { item: User }) => (
-    <TouchableOpacity
-      style={styles.userItem}
-      onPress={() => {
-        router.push(`/user/${item._id}` as any);
-      }}
-    >
-      <Image
-        source={{ uri: item.avatar || "https://avatar.iran.liara.run/public" }}
-        style={styles.avatar}
-        contentFit="cover"
-      />
-      <View style={{ flex: 1 }}>
-        <Text style={[styles.userName, { color: colors.text }]}>
-          {item.fullName}
-        </Text>
-        <Text style={[styles.userHandle, { color: colors.textSecondary }]}>
-          @{item.username}
-        </Text>
-      </View>
-      <Ionicons name="chevron-forward" size={20} color={colors.textSecondary} />
-    </TouchableOpacity>
+        <View style={[styles.miniBtn, { backgroundColor: theme.background }]}>
+          <Ionicons name="arrow-forward" size={16} color={theme.text} />
+        </View>
+      </TouchableOpacity>
+    </Animated.View>
   );
 
   return (
     <SafeAreaView
-      style={[styles.container, { backgroundColor: colors.background }]}
+      style={[styles.container, { backgroundColor: theme.background }]}
+      edges={["top"]}
     >
-      <View style={styles.header}>
-        <TouchableOpacity
-          onPress={() => router.back()}
-          style={{ marginRight: 12, padding: 4 }}
-        >
-          <Ionicons name="arrow-back" size={26} color={colors.text} />
-        </TouchableOpacity>
-        <Text style={[styles.title, { color: colors.text }]}>Tìm kiếm</Text>
-      </View>
+      <TouchableWithoutFeedback onPress={Keyboard.dismiss}>
+        <View>
+          {/* HEADER */}
+          <View style={styles.header}>
+            <Text style={[styles.headerTitle, { color: theme.text }]}>
+              Tìm kiếm
+            </Text>
+          </View>
 
-      <View
-        style={[
-          styles.searchRow,
-          { backgroundColor: colors.card, borderColor: colors.border },
-        ]}
-      >
-        <Ionicons name="search" size={20} color={colors.textSecondary} />
-        <TextInput
-          value={query}
-          onChangeText={setQuery}
-          placeholder={
-            activeTab === "posts" ? "Tìm bài viết..." : "Tìm mọi người..."
-          }
-          placeholderTextColor={colors.textSecondary}
-          style={[styles.input, { color: colors.text }]}
-          autoCapitalize="none"
-          autoCorrect={false}
-          returnKeyType="search"
-        />
-        {!!query && (
-          <TouchableOpacity
-            onPress={() => setQuery("")}
-            style={styles.clearBtn}
-          >
-            <Ionicons
-              name="close-circle"
-              size={20}
-              color={colors.textSecondary}
-            />
-          </TouchableOpacity>
+          {/* SEARCH BAR */}
+          <View style={styles.searchContainer}>
+            <View
+              style={[
+                styles.searchBar,
+                {
+                  backgroundColor: theme.card,
+                  shadowColor: "#000",
+                },
+              ]}
+            >
+              <Ionicons name="search" size={20} color={theme.primary} />
+              <TextInput
+                value={query}
+                onChangeText={setQuery}
+                placeholder={
+                  activeTab === "posts"
+                    ? "Tìm bài viết hay..."
+                    : "Tìm kiếm thành viên..."
+                }
+                placeholderTextColor={theme.textSecondary}
+                style={[styles.input, { color: theme.text }]}
+                autoCapitalize="none"
+                autoCorrect={false}
+                returnKeyType="search"
+              />
+              {!!query && (
+                <TouchableOpacity
+                  onPress={() => setQuery("")}
+                  style={styles.clearBtn}
+                >
+                  <Ionicons
+                    name="close-circle"
+                    size={18}
+                    color={theme.textSecondary}
+                  />
+                </TouchableOpacity>
+              )}
+            </View>
+          </View>
+
+          {/* PILL TABS */}
+          <View style={styles.tabContainer}>
+            <TouchableOpacity
+              style={[
+                styles.pillTab,
+                activeTab === "posts"
+                  ? { backgroundColor: theme.primary }
+                  : {
+                      backgroundColor: theme.card,
+                      borderWidth: 1,
+                      borderColor: theme.border,
+                    },
+              ]}
+              onPress={() => setActiveTab("posts")}
+            >
+              <Ionicons
+                name={
+                  activeTab === "posts"
+                    ? "document-text"
+                    : "document-text-outline"
+                }
+                size={16}
+                color={activeTab === "posts" ? "#fff" : theme.textSecondary}
+                style={{ marginRight: 6 }}
+              />
+              <Text
+                style={[
+                  styles.pillText,
+                  {
+                    color: activeTab === "posts" ? "#fff" : theme.textSecondary,
+                    fontWeight: activeTab === "posts" ? "700" : "500",
+                  },
+                ]}
+              >
+                Bài viết
+              </Text>
+            </TouchableOpacity>
+
+            <TouchableOpacity
+              style={[
+                styles.pillTab,
+                activeTab === "users"
+                  ? { backgroundColor: theme.primary }
+                  : {
+                      backgroundColor: theme.card,
+                      borderWidth: 1,
+                      borderColor: theme.border,
+                    },
+              ]}
+              onPress={() => setActiveTab("users")}
+            >
+              <Ionicons
+                name={activeTab === "users" ? "people" : "people-outline"}
+                size={16}
+                color={activeTab === "users" ? "#fff" : theme.textSecondary}
+                style={{ marginRight: 6 }}
+              />
+              <Text
+                style={[
+                  styles.pillText,
+                  {
+                    color: activeTab === "users" ? "#fff" : theme.textSecondary,
+                    fontWeight: activeTab === "users" ? "700" : "500",
+                  },
+                ]}
+              >
+                Mọi người
+              </Text>
+            </TouchableOpacity>
+          </View>
+        </View>
+      </TouchableWithoutFeedback>
+
+      {/* CONTENT LIST */}
+      <View style={{ flex: 1 }}>
+        {activeTab === "posts" ? (
+          <>
+            {postsQuery.isLoading && (
+              <View style={styles.centerState}>
+                <ActivityIndicator size="large" color={theme.primary} />
+              </View>
+            )}
+
+            {!postsQuery.isLoading && !debounced && (
+              <View style={styles.centerState}>
+                {/* --- [THAY ĐỔI] Logo TEXT thay vì IMAGE --- */}
+                <View
+                  style={{
+                    marginBottom: 20,
+                    alignItems: "center",
+                    opacity: 0.5,
+                  }}
+                >
+                  <Text
+                    style={{
+                      fontSize: 48,
+                      fontWeight: "900",
+                      color: theme.text,
+                      letterSpacing: -2,
+                    }}
+                  >
+                    Aurews<Text style={{ color: theme.primary }}>.</Text>
+                  </Text>
+                </View>
+                {/* ----------------------------------------- */}
+
+                <Text
+                  style={[
+                    styles.emptyText,
+                    { color: theme.text, fontWeight: "bold" },
+                  ]}
+                >
+                  Tìm kiếm cảm hứng
+                </Text>
+                <Text
+                  style={[styles.subEmptyText, { color: theme.textSecondary }]}
+                >
+                  Nhập từ khóa để khám phá hàng ngàn bài viết thú vị trên
+                  Aurews.
+                </Text>
+              </View>
+            )}
+
+            {!postsQuery.isLoading && debounced && (
+              <FlatList
+                data={postResults}
+                keyExtractor={(item) => item._id}
+                contentContainerStyle={styles.listContent}
+                renderItem={renderPostItem}
+                keyboardDismissMode="on-drag"
+                showsVerticalScrollIndicator={false}
+                ListEmptyComponent={
+                  <View style={styles.centerState}>
+                    <Ionicons
+                      name="sad-outline"
+                      size={60}
+                      color={theme.border}
+                    />
+                    <Text style={{ color: theme.textSecondary, marginTop: 10 }}>
+                      Không tìm thấy bài viết nào.
+                    </Text>
+                  </View>
+                }
+              />
+            )}
+          </>
+        ) : (
+          <>
+            {usersQuery.isLoading && (
+              <View style={styles.centerState}>
+                <ActivityIndicator size="large" color={theme.primary} />
+              </View>
+            )}
+
+            {!usersQuery.isLoading && !debounced && (
+              <View style={styles.centerState}>
+                <View
+                  style={[styles.iconCircle, { backgroundColor: theme.card }]}
+                >
+                  <Ionicons
+                    name="person-add-outline"
+                    size={40}
+                    color={theme.primary}
+                  />
+                </View>
+                <Text
+                  style={[
+                    styles.emptyText,
+                    { color: theme.text, fontWeight: "bold" },
+                  ]}
+                >
+                  Kết nối cộng đồng
+                </Text>
+                <Text
+                  style={[styles.subEmptyText, { color: theme.textSecondary }]}
+                >
+                  Tìm kiếm bạn bè, tác giả nổi tiếng để theo dõi ngay hôm nay.
+                </Text>
+              </View>
+            )}
+
+            {!usersQuery.isLoading && debounced && (
+              <FlatList
+                data={userResults}
+                keyExtractor={(item) => item._id}
+                contentContainerStyle={styles.listContent}
+                renderItem={renderUserItem}
+                keyboardDismissMode="on-drag"
+                showsVerticalScrollIndicator={false}
+                ListEmptyComponent={
+                  <View style={styles.centerState}>
+                    <Ionicons
+                      name="sad-outline"
+                      size={60}
+                      color={theme.border}
+                    />
+                    <Text style={{ color: theme.textSecondary, marginTop: 10 }}>
+                      Không tìm thấy người dùng nào.
+                    </Text>
+                  </View>
+                }
+              />
+            )}
+          </>
         )}
       </View>
-
-      {/* Tabs */}
-      <View style={[styles.tabContainer, { borderBottomColor: colors.border }]}>
-        <TouchableOpacity
-          style={[
-            styles.tab,
-            activeTab === "posts" && { borderBottomColor: colors.text },
-          ]}
-          onPress={() => setActiveTab("posts")}
-        >
-          <Text
-            style={[
-              styles.tabText,
-              {
-                color:
-                  activeTab === "posts" ? colors.text : colors.textSecondary,
-              },
-            ]}
-          >
-            Bài viết
-          </Text>
-        </TouchableOpacity>
-        <TouchableOpacity
-          style={[
-            styles.tab,
-            activeTab === "users" && { borderBottomColor: colors.text },
-          ]}
-          onPress={() => setActiveTab("users")}
-        >
-          <Text
-            style={[
-              styles.tabText,
-              {
-                color:
-                  activeTab === "users" ? colors.text : colors.textSecondary,
-              },
-            ]}
-          >
-            Mọi người
-          </Text>
-        </TouchableOpacity>
-      </View>
-
-      {/* Content */}
-      {activeTab === "posts" ? (
-        <>
-          {postsQuery.isLoading && (
-            <View style={styles.state}>
-              <ActivityIndicator size="small" color={colors.primary} />
-            </View>
-          )}
-          {!postsQuery.isLoading && !debounced && (
-            <View style={styles.state}>
-              <Ionicons
-                name="newspaper-outline"
-                size={48}
-                color={colors.border}
-              />
-              <Text style={{ color: colors.textSecondary, marginTop: 12 }}>
-                Nhập từ khóa để tìm bài viết
-              </Text>
-            </View>
-          )}
-          {!postsQuery.isLoading && debounced && (
-            <FlatList
-              data={postResults}
-              keyExtractor={(item) => item._id}
-              contentContainerStyle={styles.list}
-              renderItem={renderPostItem}
-              ListEmptyComponent={
-                <View style={styles.state}>
-                  <Text style={{ color: colors.textSecondary }}>
-                    Không tìm thấy bài viết nào.
-                  </Text>
-                </View>
-              }
-            />
-          )}
-        </>
-      ) : (
-        <>
-          {usersQuery.isLoading && (
-            <View style={styles.state}>
-              <ActivityIndicator size="small" color={colors.primary} />
-            </View>
-          )}
-          {!usersQuery.isLoading && !debounced && (
-            <View style={styles.state}>
-              <Ionicons name="people-outline" size={48} color={colors.border} />
-              <Text style={{ color: colors.textSecondary, marginTop: 12 }}>
-                Tìm kiếm tác giả và thành viên
-              </Text>
-            </View>
-          )}
-          {!usersQuery.isLoading && debounced && (
-            <FlatList
-              data={userResults}
-              keyExtractor={(item) => item._id}
-              contentContainerStyle={styles.list}
-              renderItem={renderUserItem}
-              ListEmptyComponent={
-                <View style={styles.state}>
-                  <Text style={{ color: colors.textSecondary }}>
-                    Không tìm thấy người dùng nào.
-                  </Text>
-                </View>
-              }
-            />
-          )}
-        </>
-      )}
     </SafeAreaView>
   );
 }
 
 const styles = StyleSheet.create({
   container: { flex: 1 },
+
+  // Header
   header: {
+    paddingHorizontal: 20,
+    paddingTop: 10,
+    paddingBottom: 16,
+    flexDirection: "row",
+    justifyContent: "space-between",
+    alignItems: "center",
+  },
+  headerTitle: {
+    fontSize: 30,
+    fontWeight: "900",
+    letterSpacing: -1,
+  },
+  filterBtn: {
+    width: 40,
+    height: 40,
+    borderRadius: 20,
+    alignItems: "center",
+    justifyContent: "center",
+  },
+
+  // Search Bar
+  searchContainer: {
+    paddingHorizontal: 20,
+    marginBottom: 16,
+  },
+  searchBar: {
+    flexDirection: "row",
+    alignItems: "center",
     paddingHorizontal: 16,
-    paddingTop: 16,
-    paddingBottom: 8,
+    height: 52,
+    borderRadius: 16,
+    // Shadow cho iOS
+    shadowOffset: { width: 0, height: 4 },
+    shadowOpacity: 0.05,
+    shadowRadius: 10,
+    // Shadow cho Android
+    elevation: 2,
+  },
+  input: {
+    flex: 1,
+    fontSize: 16,
+    marginLeft: 10,
+    height: "100%",
+    fontWeight: "500",
+  },
+  clearBtn: {
+    padding: 4,
+  },
+
+  // Pill Tabs
+  tabContainer: {
+    flexDirection: "row",
+    paddingHorizontal: 20,
+    marginBottom: 10,
+    gap: 12,
+  },
+  pillTab: {
     flexDirection: "row",
     alignItems: "center",
+    paddingVertical: 10,
+    paddingHorizontal: 18,
+    borderRadius: 30,
   },
-  title: { fontSize: 26, fontWeight: "900" },
-  searchRow: {
-    marginHorizontal: 16,
-    paddingHorizontal: 12,
-    paddingVertical: 12,
-    borderRadius: 12,
-    borderWidth: 1,
-    flexDirection: "row",
-    alignItems: "center",
-    gap: 8,
+  pillText: {
+    fontSize: 14,
   },
-  input: { flex: 1, fontSize: 16 },
-  clearBtn: { padding: 4 },
-  state: {
+
+  // State Styles
+  centerState: {
+    flex: 1,
     alignItems: "center",
     justifyContent: "center",
     padding: 40,
-    opacity: 0.7,
+    marginTop: -40,
   },
-  list: { padding: 16, paddingTop: 8 },
-  item: {
-    borderWidth: 1,
-    borderRadius: 12,
-    padding: 12,
-    marginBottom: 12,
+  iconCircle: {
+    width: 80,
+    height: 80,
+    borderRadius: 40,
+    alignItems: "center",
+    justifyContent: "center",
+    marginBottom: 20,
   },
-  itemTitle: { fontSize: 16, fontWeight: "bold", marginBottom: 4 },
-  itemMeta: { fontSize: 12 },
+  emptyText: {
+    fontSize: 18,
+    marginBottom: 8,
+  },
+  subEmptyText: {
+    fontSize: 14,
+    textAlign: "center",
+    lineHeight: 20,
+  },
 
+  // List Styles
+  listContent: {
+    paddingHorizontal: 20,
+    paddingBottom: 100, // Padding cho bottom tab bar
+    paddingTop: 10,
+  },
+
+  // Post Card (Magazine Style)
+  postItem: {
+    flexDirection: "row",
+    marginBottom: 16,
+    borderRadius: 16,
+    padding: 10,
+    // Shadow
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.05,
+    shadowRadius: 8,
+    elevation: 2,
+  },
+  postThumb: {
+    width: 90,
+    height: 90,
+    borderRadius: 12,
+    backgroundColor: "#f0f0f0",
+  },
+  postInfo: {
+    flex: 1,
+    paddingLeft: 12,
+    justifyContent: "space-between",
+    paddingVertical: 2,
+  },
+  postCategory: {
+    fontSize: 10,
+    fontWeight: "800",
+    textTransform: "uppercase",
+    marginBottom: 4,
+    opacity: 0.8,
+  },
+  postTitle: {
+    fontSize: 15,
+    fontWeight: "700",
+    lineHeight: 22,
+    letterSpacing: -0.3,
+  },
+  postFooter: {
+    flexDirection: "row",
+    alignItems: "center",
+  },
+  postMeta: {
+    fontSize: 11,
+    fontWeight: "500",
+  },
+
+  // User Card
   userItem: {
     flexDirection: "row",
     alignItems: "center",
-    paddingVertical: 12,
-    paddingHorizontal: 4,
-    gap: 12,
+    marginBottom: 12,
+    padding: 14,
+    borderRadius: 16,
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.03,
+    shadowRadius: 6,
+    elevation: 1,
   },
-  avatar: { width: 50, height: 50, borderRadius: 25 },
-  userName: { fontSize: 16, fontWeight: "bold" },
-  userHandle: { fontSize: 14 },
-
-  tabContainer: {
-    flexDirection: "row",
-    marginTop: 16,
-    borderBottomWidth: 1,
+  avatar: {
+    width: 50,
+    height: 50,
+    borderRadius: 25,
+    marginRight: 14,
+    backgroundColor: "#f0f0f0",
   },
-  tab: {
-    flex: 1,
-    alignItems: "center",
-    paddingBottom: 12,
-    borderBottomWidth: 2,
-    borderBottomColor: "transparent",
-  },
-  tabText: {
+  userName: {
     fontSize: 16,
-    fontWeight: "600",
+    fontWeight: "700",
+    marginBottom: 2,
+  },
+  userHandle: {
+    fontSize: 13,
+  },
+  miniBtn: {
+    width: 32,
+    height: 32,
+    borderRadius: 16,
+    alignItems: "center",
+    justifyContent: "center",
   },
 });

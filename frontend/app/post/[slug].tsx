@@ -18,13 +18,13 @@ import Animated, {
   useAnimatedStyle,
   useAnimatedScrollHandler,
   interpolate,
-  Extrapolation,
 } from "react-native-reanimated";
 
 // Hooks
 import { usePost, useToggleLike } from "../../src/hooks/post.hook";
 import { useUserActivity } from "../../src/hooks/userActivity.hook";
 import { useRequireAuth } from "../../src/hooks/useRequireAuth";
+import { useAuthStore } from "../../src/stores/auth.store";
 import {
   useTheme,
   useAnimatedTheme,
@@ -34,8 +34,8 @@ import { getTimeAgo } from "../../src/utils/dateHelpers";
 import { useWindowDimensions, Platform } from "react-native";
 import RenderHtml from "react-native-render-html";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
+import { BackArrow } from "../../src/components/BackArrow";
 
-const { width } = Dimensions.get("window");
 const BANNER_HEIGHT = 400;
 
 export default function PostDetailScreen() {
@@ -48,15 +48,15 @@ export default function PostDetailScreen() {
   const { backgroundStyle, textStyle } = useAnimatedTheme();
   const requireAuth = useRequireAuth();
 
-  // 1. Lấy dữ liệu bài viết (React Query tự động cập nhật UI khi cache thay đổi)
+  // [UPDATED] Lấy thêm object 'user' để so sánh ID
+  const { user, isAuthenticated } = useAuthStore();
+
   const { data: postResponse, isLoading } = usePost(slug as string);
   const post = postResponse?.data;
 
-  // 2. Các hoạt động người dùng (Bookmark, Follow)
   const { toggleBookmark, isBookmarked, isFollowing, toggleFollow } =
     useUserActivity();
 
-  // 3. Mutation Like
   const { mutate: apiToggleLike } = useToggleLike(
     post?._id || "",
     slug as string
@@ -66,11 +66,8 @@ export default function PostDetailScreen() {
     let content =
       post?.text || post?.content || "<p>Nội dung đang được cập nhật...</p>";
 
-    // Nếu nội dung là plain text (không chứa thẻ HTML phổ biến), ta convert \n thành <br/>
-    // và bọc trong thẻ p để nhận style
     const hasHtmlTags = /<[a-z][\s\S]*>/i.test(content);
     if (!hasHtmlTags) {
-      // Escape HTML characters to prevent injection if it was meant to be plain text
       content = content
         .replace(/&/g, "&amp;")
         .replace(/</g, "&lt;")
@@ -84,29 +81,38 @@ export default function PostDetailScreen() {
 
   const scrollY = useSharedValue(0);
 
-  // Ép kiểu author an toàn
   const authorData =
     post?.authorUser ||
     ((typeof post?.author === "object" ? post.author : null) as any);
 
-  // --- LOGIC LIKE: ĐẢM BẢO TĂNG/GIẢM VÀ ĐỔI MÀU (THROTTLED) ---
+  // [NEW] Logic kiểm tra: Nếu ID người đang đăng nhập trùng với ID tác giả
+  const isOwner = user?._id && authorData?._id && user._id === authorData._id;
+
   const lastLikePress = React.useRef(0);
+
+  // --- HÀM ĐIỀU HƯỚNG SANG PUBLIC PROFILE ---
+  const handleAuthorPress = () => {
+    if (authorData?._id) {
+      router.push(`/user/${authorData._id}`);
+    }
+  };
+  // ------------------------------------------
+
   const handleLike = requireAuth(() => {
     if (!post?._id) return;
-
-    // Throttle 500ms
     const now = Date.now();
     if (now - lastLikePress.current < 500) return;
     lastLikePress.current = now;
-
-    // Phản hồi rung
     Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
-
-    // Gọi API trực tiếp, UI tự update qua React Query Polling/Invalidation
     apiToggleLike();
   }, "Vui lòng đăng nhập để thích bài viết");
 
-  // --- LOGIC FOLLOW TIKTOK STYLE ---
+  const handleBookmark = requireAuth(() => {
+    if (post?._id) {
+      toggleBookmark(post._id);
+    }
+  }, "Vui lòng đăng nhập để lưu bài viết");
+
   const handleFollow = requireAuth(() => {
     if (authorData?._id) {
       Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
@@ -135,9 +141,11 @@ export default function PostDetailScreen() {
     );
   }
 
-  // Lấy trạng thái từ Store/Hook
-  const following = authorData?._id ? isFollowing(authorData._id) : false;
-  const bookmarked = isBookmarked(post._id);
+  const following =
+    isAuthenticated && authorData?._id ? isFollowing(authorData._id) : false;
+
+  const bookmarked =
+    isAuthenticated && post?._id ? isBookmarked(post._id) : false;
 
   return (
     <View style={[styles.container, { backgroundColor: theme.background }]}>
@@ -145,12 +153,7 @@ export default function PostDetailScreen() {
 
       {/* Header Bar */}
       <Animated.View style={[styles.header, headerStyle]}>
-        <TouchableOpacity
-          onPress={() => router.back()}
-          style={styles.headerBtn}
-        >
-          <Ionicons name="chevron-back" size={24} color={theme.text} />
-        </TouchableOpacity>
+        <BackArrow color={theme.text} style={{ marginLeft: 0 }} />
         <View style={styles.headerTitleContainer}>
           <Animated.Text
             style={[styles.headerTitle, textStyle]}
@@ -194,11 +197,15 @@ export default function PostDetailScreen() {
           <View style={styles.authorRow}>
             <View style={styles.authorInfo}>
               <View>
-                <Image
-                  source={{ uri: authorData?.avatar }}
-                  style={styles.avatar}
-                />
-                {!following && (
+                <TouchableOpacity onPress={handleAuthorPress}>
+                  <Image
+                    source={{ uri: authorData?.avatar }}
+                    style={styles.avatar}
+                  />
+                </TouchableOpacity>
+
+                {/* [UPDATED] Thêm điều kiện !isOwner vào đây */}
+                {!following && !isOwner && (
                   <TouchableOpacity
                     style={[
                       styles.plusButton,
@@ -211,12 +218,15 @@ export default function PostDetailScreen() {
                 )}
               </View>
               <View style={styles.authorTextContainer}>
-                <Animated.Text
-                  style={[styles.authorName, textStyle]}
-                  numberOfLines={1}
-                >
-                  {authorData?.fullName || authorData?.name}
-                </Animated.Text>
+                <TouchableOpacity onPress={handleAuthorPress}>
+                  <Animated.Text
+                    style={[styles.authorName, textStyle]}
+                    numberOfLines={1}
+                  >
+                    {authorData?.fullName || authorData?.name}
+                  </Animated.Text>
+                </TouchableOpacity>
+
                 <Text style={[styles.meta, { color: theme.textSecondary }]}>
                   {getTimeAgo(post.publishTime)} • {post.readTime} phút đọc
                 </Text>
@@ -275,7 +285,6 @@ export default function PostDetailScreen() {
           },
         ]}
       >
-        {/* NÚT LIKE: Đổi màu và nhảy số ngay lập tức dựa trên post.isLiked từ cache */}
         <TouchableOpacity style={styles.actionBtn} onPress={handleLike}>
           <Ionicons
             name={post.isLiked ? "heart" : "heart-outline"}
@@ -307,10 +316,7 @@ export default function PostDetailScreen() {
           </Text>
         </TouchableOpacity>
 
-        <TouchableOpacity
-          style={styles.actionBtn}
-          onPress={() => toggleBookmark(post._id)}
-        >
+        <TouchableOpacity style={styles.actionBtn} onPress={handleBookmark}>
           <Ionicons
             name={bookmarked ? "bookmark" : "bookmark-outline"}
             size={24}

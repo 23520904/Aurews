@@ -1,91 +1,52 @@
 import { create } from "zustand";
+import { createJSONStorage, persist } from "zustand/middleware";
+import AsyncStorage from "@react-native-async-storage/async-storage";
 import type { User } from "../types/type";
-import { client } from "../api/client";
-
-type RegisterPayload = {
-  fullName: string;
-  username: string;
-  email: string;
-  password: string;
-  dateOfBirth: string;
-};
 
 type AuthState = {
   user: User | null;
-  isLoading: boolean;
-  error: string | null;
   isAuthenticated: boolean;
 
+  // Actions
   setUser: (u: User | null) => void;
-  setError: (e: string | null) => void;
-  clear: () => void;
-
-  fetchMe: () => Promise<User | null>;
-  login: (email: string, password: string) => Promise<User>;
-  register: (payload: RegisterPayload) => Promise<User>;
-  logout: () => Promise<void>;
+  logout: () => void;
 };
 
-export const useAuthStore = create<AuthState>((set, get) => ({
-  user: null,
-  isLoading: false,
-  error: null,
-  isAuthenticated: false,
+export const useAuthStore = create<AuthState>()(
+  persist(
+    (set) => ({
+      user: null,
+      isAuthenticated: false,
 
-  setUser: (u) => set({ user: u, isAuthenticated: Boolean(u) }),
-  setError: (e) => set({ error: e }),
-  clear: () => set({ user: null, error: null, isAuthenticated: false }),
+      setUser: (u) => set({ user: u, isAuthenticated: !!u }),
 
-  fetchMe: async () => {
-    set({ isLoading: true, error: null });
-    try {
-      // client.get throws on error, so we catch it
-      const data = await client.get<User>("/users/me");
-      set({ user: data, isLoading: false, isAuthenticated: true });
-      return data;
-    } catch (err: any) {
-      // 401/403 etc will end up here
-      set({ isLoading: false });
-      get().clear();
-      // We don't re-throw here because fetchMe is often called speculatively
-      return null;
+      logout: () => set({ user: null, isAuthenticated: false }),
+    }),
+    {
+      name: "auth-storage", // Tên key trong AsyncStorage
+      storage: createJSONStorage(() => AsyncStorage),
+      partialize: (state) => ({
+        user: state.user,
+        isAuthenticated: state.isAuthenticated,
+      }),
     }
-  },
+  )
+);
 
-  login: async (email, password) => {
-    set({ isLoading: true, error: null });
-    try {
-      const data = await client.post<any>("/auth/login", { email, password });
-      const user = data.user || data;
-      set({ user, isLoading: false, isAuthenticated: true });
-      return user;
-    } catch (err: any) {
-      set({ error: err.message || "Login failed", isLoading: false });
-      throw err;
+/**
+ * Hàm tiện ích để kiểm tra nhanh trong AsyncStorage có dữ liệu User/Token không.
+ * Dùng để quyết định có nên gọi API /users/me khi mở app hay không.
+ */
+export const getTokenFromStorage = async (): Promise<boolean> => {
+  try {
+    const stateStr = await AsyncStorage.getItem("auth-storage");
+    if (stateStr) {
+      const parsed = JSON.parse(stateStr);
+      // Kiểm tra xem state đã lưu có user và isAuthenticated = true không
+      return !!(parsed.state?.user && parsed.state?.isAuthenticated);
     }
-  },
-
-  register: async (payload) => {
-    set({ isLoading: true, error: null });
-    try {
-      const data = await client.post<any>("/auth/register", payload);
-      const user = data.user || data;
-      set({ user, isLoading: false, isAuthenticated: true });
-      return user;
-    } catch (err: any) {
-      set({ error: err.message || "Register failed", isLoading: false });
-      throw err;
-    }
-  },
-
-  logout: async () => {
-    set({ isLoading: true, error: null });
-    try {
-      await client.post("/auth/logout", {});
-      set({ user: null, isLoading: false, isAuthenticated: false });
-    } catch (err: any) {
-      set({ error: err.message || "Logout failed", isLoading: false });
-      throw err;
-    }
-  },
-}));
+    return false;
+  } catch (error) {
+    return false;
+  }
+};

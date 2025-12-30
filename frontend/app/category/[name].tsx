@@ -4,9 +4,9 @@ import {
   Text,
   StyleSheet,
   TouchableOpacity,
-  FlatList,
   StatusBar,
   Dimensions,
+  Platform,
 } from "react-native";
 import { useLocalSearchParams, useRouter } from "expo-router";
 import { Image } from "expo-image";
@@ -20,6 +20,7 @@ import Animated, {
   Extrapolation,
   FadeInDown,
 } from "react-native-reanimated";
+import { useSafeAreaInsets } from "react-native-safe-area-context"; // [NEW]
 
 import { usePosts } from "../../src/hooks/post.hook";
 import { useTheme, useAnimatedTheme } from "../../src/hooks/theme.hook";
@@ -37,10 +38,15 @@ export default function CategoryDetailScreen() {
   const router = useRouter();
   const theme = useTheme();
   const { backgroundStyle, textStyle } = useAnimatedTheme();
+  const insets = useSafeAreaInsets(); // [NEW] Lấy insets an toàn
   const scrollY = useSharedValue(0);
 
-  const { selectedTopics, toggleTopic } = usePreferenceStore();
-  const isFollowing = selectedTopics.includes(name as string);
+  // [FIX] Thêm giá trị mặc định = [] để tránh lỗi undefined khi gọi .includes
+  const { favoriteCategories = [], toggleCategory } = usePreferenceStore();
+
+  // [FIX] Optional chaining để an toàn hơn
+  const isFollowing = favoriteCategories?.includes(name as string);
+
   const updatePrefs = useUpdatePreferences();
 
   const topicInfo = TOPICS.find(
@@ -50,10 +56,11 @@ export default function CategoryDetailScreen() {
   const posts = data?.posts || [];
 
   useEffect(() => {
-    if (selectedTopics.length >= 0) {
-      updatePrefs.mutate({ favoriteCategories: selectedTopics });
+    // Chỉ update nếu mảng hợp lệ
+    if (Array.isArray(favoriteCategories)) {
+      updatePrefs.mutate({ favoriteCategories: favoriteCategories });
     }
-  }, [selectedTopics]);
+  }, [favoriteCategories]);
 
   const scrollHandler = useAnimatedScrollHandler((event) => {
     scrollY.value = event.contentOffset.y;
@@ -72,6 +79,7 @@ export default function CategoryDetailScreen() {
     ],
   }));
 
+  // Style cho Header cố định (Hiện ra khi scroll)
   const headerStyle = useAnimatedStyle(() => ({
     opacity: interpolate(
       scrollY.value,
@@ -79,6 +87,24 @@ export default function CategoryDetailScreen() {
       [0, 1]
     ),
     backgroundColor: theme.background,
+    // [FIX] Thêm border bottom khi hiện lên để tách biệt nội dung
+    borderBottomWidth: interpolate(
+      scrollY.value,
+      [BANNER_HEIGHT - 120, BANNER_HEIGHT - 70],
+      [0, 1]
+    ),
+    borderBottomColor: theme.border,
+  }));
+
+  // [NEW] Style cho nút Back kính (Ẩn đi khi scroll)
+  const glassBackStyle = useAnimatedStyle(() => ({
+    opacity: interpolate(
+      scrollY.value,
+      [BANNER_HEIGHT - 150, BANNER_HEIGHT - 100],
+      [1, 0] // Mờ dần khi scroll xuống
+    ),
+    // [UI] Ẩn hẳn để không bấm nhầm khi nó mờ đi
+    pointerEvents: scrollY.value > BANNER_HEIGHT - 100 ? "none" : "auto",
   }));
 
   const renderHeader = () => (
@@ -88,9 +114,10 @@ export default function CategoryDetailScreen() {
           <Image
             source={{ uri: topicInfo?.image }}
             style={styles.bannerImage}
+            contentFit="cover"
           />
           <LinearGradient
-            colors={["rgba(0,0,0,0.2)", "rgba(0,0,0,0.85)"]}
+            colors={["rgba(0,0,0,0.1)", "rgba(0,0,0,0.8)"]}
             style={StyleSheet.absoluteFill}
           />
         </Animated.View>
@@ -100,13 +127,16 @@ export default function CategoryDetailScreen() {
               {name}
             </Text>
             <TouchableOpacity
-              onPress={() => toggleTopic(name as string)}
+              onPress={() => toggleCategory(name as string)}
               style={[
                 styles.followBtn,
                 {
                   backgroundColor: isFollowing
                     ? "rgba(255,255,255,0.2)"
                     : theme.primary,
+                  borderColor: isFollowing
+                    ? "rgba(255,255,255,0.4)"
+                    : "transparent",
                 },
               ]}
             >
@@ -116,12 +146,13 @@ export default function CategoryDetailScreen() {
             </TouchableOpacity>
           </View>
           <Text style={styles.bannerDesc} numberOfLines={2}>
-            {topicInfo?.description}
+            {topicInfo?.description ||
+              `Khám phá các bài viết mới nhất về chủ đề ${name}.`}
           </Text>
         </View>
       </View>
 
-      <View style={styles.statsRow}>
+      <View style={[styles.statsRow, { borderBottomColor: theme.border }]}>
         <View style={styles.statItem}>
           <Animated.Text style={[styles.statNumber, textStyle]}>
             {posts.length}
@@ -133,7 +164,7 @@ export default function CategoryDetailScreen() {
         <View style={[styles.statDivider, { backgroundColor: theme.border }]} />
         <View style={styles.statItem}>
           <Animated.Text style={[styles.statNumber, textStyle]}>
-            12.5K
+            120K
           </Animated.Text>
           <Text style={[styles.statLabel, { color: theme.textSecondary }]}>
             Theo dõi
@@ -148,7 +179,17 @@ export default function CategoryDetailScreen() {
       <PageContainer style={{ backgroundColor: "transparent" }}>
         <StatusBar barStyle="light-content" translucent />
 
-        <Animated.View style={[styles.navbar, headerStyle]}>
+        {/* 1. Header Cố định (Navbar) - Hiện khi scroll xuống */}
+        <Animated.View
+          style={[
+            styles.navbar,
+            headerStyle,
+            {
+              paddingTop: insets.top, // [FIX] Padding chuẩn theo tai thỏ
+              height: 60 + insets.top,
+            },
+          ]}
+        >
           <TouchableOpacity
             onPress={() => router.back()}
             style={styles.backBtn}
@@ -161,14 +202,21 @@ export default function CategoryDetailScreen() {
           <View style={{ width: 40 }} />
         </Animated.View>
 
-        <View style={styles.fixedBack}>
+        {/* 2. Nút Back Kính (Floating) - Hiện lúc đầu */}
+        <Animated.View
+          style={[
+            styles.fixedBack,
+            glassBackStyle,
+            { top: insets.top + 10 }, // [FIX] Vị trí chuẩn
+          ]}
+        >
           <TouchableOpacity
             style={styles.glassBack}
             onPress={() => router.back()}
           >
             <Ionicons name="chevron-back" size={24} color="white" />
           </TouchableOpacity>
-        </View>
+        </Animated.View>
 
         <Animated.FlatList
           onScroll={scrollHandler}
@@ -179,17 +227,18 @@ export default function CategoryDetailScreen() {
           numColumns={2}
           columnWrapperStyle={styles.gridRow}
           showsVerticalScrollIndicator={false}
+          contentContainerStyle={{ paddingBottom: 40 }}
           renderItem={({ item, index }) => (
             <Animated.View
               entering={FadeInDown.delay(index * 100)}
               style={styles.postCard}
             >
               <TouchableOpacity
-                onPress={() => router.push(`/post/${item.slug}`)}
+                onPress={() => router.push(`/post/${item.slug}` as any)}
               >
                 <Image
                   source={{ uri: item.thumbnail }}
-                  style={styles.postThumb}
+                  style={[styles.postThumb, { backgroundColor: theme.card }]}
                 />
                 <View style={styles.postInfo}>
                   <Text
@@ -218,17 +267,29 @@ const styles = StyleSheet.create({
     position: "absolute",
     top: 0,
     width: "100%",
-    height: 100,
+    // height sẽ được set dynamic theo insets
     flexDirection: "row",
-    alignItems: "flex-end",
+    alignItems: "center", // Canh giữa theo chiều dọc
     justifyContent: "space-between",
     paddingHorizontal: 15,
-    paddingBottom: 15,
+    paddingBottom: 10,
     zIndex: 20,
   },
-  navTitle: { fontSize: 18, fontWeight: "800", textTransform: "capitalize" },
+  navTitle: {
+    fontSize: 18,
+    fontWeight: "800",
+    textTransform: "capitalize",
+    flex: 1,
+    textAlign: "center",
+    marginRight: 40, // Cân bằng với nút back width
+  },
   backBtn: { width: 40, height: 40, justifyContent: "center" },
-  fixedBack: { position: "absolute", left: 15, top: 50, zIndex: 30 },
+
+  fixedBack: {
+    position: "absolute",
+    left: 15,
+    zIndex: 30,
+  },
   glassBack: {
     width: 40,
     height: 40,
@@ -237,6 +298,7 @@ const styles = StyleSheet.create({
     alignItems: "center",
     justifyContent: "center",
   },
+
   headerContent: { width: "100%" },
   bannerContainer: { height: BANNER_HEIGHT, width: "100%", overflow: "hidden" },
   bannerWrapper: { ...StyleSheet.absoluteFillObject },
@@ -246,7 +308,7 @@ const styles = StyleSheet.create({
     bottom: 0,
     width: "100%",
     padding: 20,
-    paddingBottom: 40,
+    paddingBottom: 30,
   },
   titleRow: {
     flexDirection: "row",
@@ -261,23 +323,30 @@ const styles = StyleSheet.create({
     textTransform: "capitalize",
     flex: 1,
     marginRight: 10,
+    textShadowColor: "rgba(0, 0, 0, 0.3)",
+    textShadowOffset: { width: 0, height: 2 },
+    textShadowRadius: 4,
   },
   followBtn: {
     paddingHorizontal: 16,
     paddingVertical: 8,
     borderRadius: 20,
     borderWidth: 1,
-    borderColor: "rgba(255,255,255,0.3)",
   },
   followBtnText: { color: "#fff", fontSize: 13, fontWeight: "700" },
-  bannerDesc: { color: "rgba(255,255,255,0.8)", fontSize: 14, lineHeight: 20 },
+  bannerDesc: {
+    color: "rgba(255,255,255,0.9)",
+    fontSize: 14,
+    lineHeight: 20,
+    textShadowColor: "rgba(0, 0, 0, 0.3)",
+    textShadowOffset: { width: 0, height: 1 },
+    textShadowRadius: 3,
+  },
   statsRow: {
     flexDirection: "row",
     alignItems: "center",
     paddingVertical: 20,
-    backgroundColor: "transparent",
     borderBottomWidth: 1,
-    borderBottomColor: "rgba(0,0,0,0.05)",
   },
   statItem: { flex: 1, alignItems: "center" },
   statNumber: { fontSize: 20, fontWeight: "800" },

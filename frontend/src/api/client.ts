@@ -1,4 +1,4 @@
-
+// src/api/client.ts
 const BASE_URL =
   process.env.EXPO_PUBLIC_BASE_API_URL || "http://localhost:5000/api";
 
@@ -81,10 +81,22 @@ class ApiClient {
           this.processQueue(refreshError, null);
           this.isRefreshing = false;
 
-          // BƯỚC 2: Truy cập Store bằng cách require trực tiếp bên trong hàm xử lý lỗi
-          // Cách này đảm bảo Store chỉ được gọi sau khi toàn bộ App đã khởi tạo xong
-          const { useAuthStore } = require("../stores/auth.store");
-          useAuthStore.getState().clear();
+          // --- SỬA LỖI TẠI ĐÂY ---
+          try {
+            // Dùng require để tránh circular dependency
+            const { useAuthStore } = require("../stores/auth.store");
+
+            // Gọi hàm logout() thay vì clear()
+            if (useAuthStore && useAuthStore.getState) {
+              useAuthStore.getState().logout();
+            }
+          } catch (e) {
+            console.error(
+              "Error accessing auth store during refresh failure:",
+              e
+            );
+          }
+          // -----------------------
 
           throw refreshError;
         }
@@ -102,7 +114,10 @@ class ApiClient {
       if (response.status === 204) return {} as T;
       return await response.json();
     } catch (error: any) {
-      console.error(`[API Error ${endpoint}]:`, error.message);
+      // Bỏ log lỗi 401 để tránh rác console vì nó đã được handle
+      if (error?.status !== 401) {
+        console.error(`[API Error ${endpoint}]:`, error.message);
+      }
       throw error;
     }
   }

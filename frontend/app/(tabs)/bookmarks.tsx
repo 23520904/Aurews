@@ -3,7 +3,6 @@ import {
   View,
   Text,
   StyleSheet,
-  FlatList,
   TouchableOpacity,
   StatusBar,
   ActivityIndicator,
@@ -35,15 +34,17 @@ import {
 } from "../../src/hooks/theme.hook";
 import { PageContainer } from "../../src/components/PageContainer";
 import { Post } from "../../src/types/type";
+// IMPORT MỚI
+import GuestView from "../../src/components/GuestView";
 
 export default function BookmarksScreen() {
   const router = useRouter();
-  const theme = useTheme(); //
-  const { mode } = useThemeMode(); //
-  const { backgroundStyle, textStyle } = useAnimatedTheme(); //
+  const theme = useTheme();
+  const { mode } = useThemeMode();
+  const { backgroundStyle, textStyle } = useAnimatedTheme();
 
-  const { data: user } = useCheckAuth(); //
-  const { bookmarks, isLoading, toggleBookmark } = useUserActivity(); //
+  const { data: user } = useCheckAuth();
+  const { bookmarks, isLoading, toggleBookmark } = useUserActivity();
 
   const scrollY = useSharedValue(0);
 
@@ -94,7 +95,6 @@ export default function BookmarksScreen() {
     ]);
   };
 
-  // Thành phần nút xóa khi vuốt
   const renderRightActions = (postId: string) => (
     <TouchableOpacity
       style={[styles.deleteAction, { backgroundColor: theme.error }]}
@@ -105,26 +105,13 @@ export default function BookmarksScreen() {
     </TouchableOpacity>
   );
 
+  // --- THAY ĐỔI TẠI ĐÂY ---
   if (!user) {
     return (
-      <PageContainer style={styles.container}>
-        <Animated.View style={[styles.center, backgroundStyle]}>
-          <Ionicons
-            name="lock-closed-outline"
-            size={80}
-            color={theme.textLight}
-          />
-          <Text style={[styles.message, { color: theme.textSecondary }]}>
-            Vui lòng đăng nhập.
-          </Text>
-          <TouchableOpacity
-            style={[styles.loginBtn, { backgroundColor: theme.primary }]}
-            onPress={() => router.push("/(auth)/login")}
-          >
-            <Text style={styles.loginText}>Đăng nhập ngay</Text>
-          </TouchableOpacity>
-        </Animated.View>
-      </PageContainer>
+      <GuestView
+        title="Lưu bài viết yêu thích"
+        description="Đăng nhập để lưu và quản lý các bài viết bạn quan tâm."
+      />
     );
   }
 
@@ -284,8 +271,7 @@ const styles = StyleSheet.create({
     marginTop: 16,
     marginBottom: 24,
   },
-  loginBtn: { paddingVertical: 12, paddingHorizontal: 30, borderRadius: 25 },
-  loginText: { color: "white", fontWeight: "700", fontSize: 16 },
+  // Xóa các style không còn dùng (loginBtn, loginText) nếu muốn gọn code
   listContent: { padding: 20, paddingTop: 10, paddingBottom: 100, flexGrow: 1 },
   card: {
     flexDirection: "row",

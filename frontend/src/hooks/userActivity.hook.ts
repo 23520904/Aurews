@@ -4,9 +4,11 @@ import { client } from "../api/client";
 import { useUserActivityStore } from "../stores/userActivity.store";
 import { APIResponse } from "../types/type";
 import { useEffect } from "react";
+import { useAuthStore } from "../stores";
 
 export const useUserActivity = () => {
   const queryClient = useQueryClient();
+  const isAuthenticated = useAuthStore((s) => s.isAuthenticated);
   const {
     setBookmarkedPostIds,
     bookmarkedPostIds,
@@ -22,6 +24,7 @@ export const useUserActivity = () => {
       const res = await client.get<APIResponse<any[]>>("/users/me/bookmarks");
       return res.data || [];
     },
+    enabled: isAuthenticated,
   });
 
   useEffect(() => {

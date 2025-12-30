@@ -1,36 +1,66 @@
-import { create } from 'zustand';
+// src/stores/preference.store.ts
+import { create } from "zustand";
 
 type PreferenceState = {
-  selectedTopics: string[];
-  selectedSources: string[];
-  toggleTopic: (topic: string) => void;
-  toggleSource: (id: string) => void;
-  setTopics: (topics: string[]) => void;
-  setSources: (sources: string[]) => void;
-  hydrateFromUser: (prefs: any | null) => void;
+  // Đổi tên cho khớp Backend
+  favoriteCategories: string[];
+  theme: "light" | "dark" | "system";
+  emailNotifications: boolean;
+  pushNotifications: boolean;
+
+  // Actions
+  toggleCategory: (category: string) => void;
+  setCategories: (categories: string[]) => void;
+  setTheme: (mode: "light" | "dark" | "system") => void;
+  toggleEmailNotification: () => void;
+  togglePushNotification: () => void;
+
+  // Hàm nạp dữ liệu từ API vào Store
+  hydratePreferences: (prefs: any) => void;
+
+  // Reset khi đăng xuất
   clear: () => void;
 };
 
 export const usePreferenceStore = create<PreferenceState>((set) => ({
-  selectedTopics: [],
-  selectedSources: [],
-  toggleTopic: (topic: string) =>
+  favoriteCategories: [],
+  theme: "light",
+  emailNotifications: true,
+  pushNotifications: false,
+
+  toggleCategory: (category: string) =>
     set((state) => ({
-      selectedTopics: state.selectedTopics.includes(topic)
-        ? state.selectedTopics.filter((t) => t !== topic)
-        : [...state.selectedTopics, topic],
+      favoriteCategories: state.favoriteCategories.includes(category)
+        ? state.favoriteCategories.filter((c) => c !== category)
+        : [...state.favoriteCategories, category],
     })),
-  toggleSource: (id: string) =>
-    set((state) => ({
-      selectedSources: state.selectedSources.includes(id)
-        ? state.selectedSources.filter((s) => s !== id)
-        : [...state.selectedSources, id],
-    })),
-  setTopics: (topics: string[]) => set({ selectedTopics: topics }),
-  setSources: (sources: string[]) => set({ selectedSources: sources }),
-  hydrateFromUser: (prefs) => {
+
+  setCategories: (categories: string[]) =>
+    set({ favoriteCategories: categories }),
+
+  setTheme: (mode) => set({ theme: mode }),
+
+  toggleEmailNotification: () =>
+    set((state) => ({ emailNotifications: !state.emailNotifications })),
+
+  togglePushNotification: () =>
+    set((state) => ({ pushNotifications: !state.pushNotifications })),
+
+  hydratePreferences: (prefs) => {
     if (!prefs) return;
-    set({ selectedTopics: prefs.topics || [], selectedSources: prefs.sources || [] });
+    set({
+      favoriteCategories: prefs.favoriteCategories || [],
+      theme: prefs.theme || "light",
+      emailNotifications: prefs.emailNotifications ?? true,
+      pushNotifications: prefs.pushNotifications ?? false,
+    });
   },
-  clear: () => set({ selectedTopics: [], selectedSources: [] }),
+
+  clear: () =>
+    set({
+      favoriteCategories: [],
+      theme: "light",
+      emailNotifications: true,
+      pushNotifications: false,
+    }),
 }));

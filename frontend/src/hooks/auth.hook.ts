@@ -1,63 +1,95 @@
-import { useEffect } from "react";
+import { useEffect, useState } from "react";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
-import { useAuthStore } from "../stores/auth.store";
-import { client } from "../api/client"; // Sử dụng ApiClient mới đã có logic refresh token
+import { useAuthStore, getTokenFromStorage } from "../stores/auth.store";
+import { client } from "../api/client";
 import type { User } from "../types/type";
 
-export const useCheckAuth = (options?: { enabled?: boolean }) => {
-  const setUser = useAuthStore((s) => s.setUser);
-  const clear = useAuthStore((s) => s.clear);
+// Import các store khác để xử lý side-effect khi logout
+import { usePreferenceStore } from "../stores/preference.store";
+import { useThemeStore } from "../stores/theme.store";
 
-  const query = useQuery<any, Error>({
+// 1. Hook kiểm tra đăng nhập (Logic thông minh: Check Storage -> Fetch API)
+export const useCheckAuth = () => {
+  const setUser = useAuthStore((s) => s.setUser);
+  const logoutClient = useAuthStore((s) => s.logout);
+
+  // State nội bộ để kiểm soát luồng
+  const [isChecking, setIsChecking] = useState(true); // Đang đọc Storage
+  const [shouldFetch, setShouldFetch] = useState(false); // Có nên gọi API không
+
+  // --- LOGIC HELPER: RESET VỀ MẶC ĐỊNH ---
+  const resetToGuestMode = () => {
+    // 1. Clear dữ liệu user trong store auth
+    logoutClient();
+    // 2. Clear sở thích (categories...)
+    usePreferenceStore.getState().clear();
+    // 3. [QUAN TRỌNG] Ép về chế độ Sáng
+    useThemeStore.getState().setPreference("light");
+  };
+
+  // Bước 1: Khi mount, kiểm tra AsyncStorage trước
+  useEffect(() => {
+    const checkStorage = async () => {
+      const hasToken = await getTokenFromStorage();
+      if (hasToken) {
+        setShouldFetch(true); // Có token cũ -> Cho phép gọi API check tươi
+      } else {
+        setShouldFetch(false); // Không có token -> Guest -> Không gọi API
+
+        resetToGuestMode();
+      }
+      setIsChecking(false); // Đã kiểm tra xong
+    };
+    checkStorage();
+  }, []);
+
+  // Bước 2: React Query chỉ chạy khi shouldFetch = true
+  const query = useQuery({
     queryKey: ["me"],
     queryFn: async () => {
-      // Dùng client để tận dụng interceptors xử lý 401 và tự động refresh token
       return client.get<any>("/users/me");
     },
-    retry: false, // Tránh spam server khi thực sự không có session
-    enabled: options?.enabled ?? true,
-    staleTime: 1000 * 60 * 5, // Dữ liệu user được coi là mới trong 5 phút
+    retry: false,
+    staleTime: 1000 * 60 * 5,
+    enabled: !isChecking && shouldFetch, // QUAN TRỌNG: Chỉ chạy khi đã check xong và có token
   });
 
+  // Bước 3: Xử lý kết quả trả về từ API
   useEffect(() => {
     if (query.data) {
-      // Handle both raw User object and APIResponse wrapper
+      // API trả về user mới nhất -> Cập nhật Store
       const user = query.data.data || query.data;
-      if (user && user._id) {
-        setUser(user as User);
-      }
+      setUser(user as User);
+    } else if (query.isError) {
+      // Token cũ không còn dùng được (Hết hạn/Bị ban) -> Logout sạch sẽ
+      resetToGuestMode();
     }
-  }, [query.data, setUser]);
+  }, [query.data, query.isError, setUser]);
 
-  // Chỉ clear store khi có lỗi thực sự (RefreshToken cũng hết hạn)
-  useEffect(() => {
-    if (query.isError) {
-      clear();
-    }
-  }, [query.isError, clear]);
-
-  return query;
+  // Trả về thêm isChecking để _layout hiển thị màn hình chờ
+  return { ...query, isChecking };
 };
 
+// 2. Hook cho các hành động Đăng nhập/Đăng ký/Đăng xuất
 export const useAuthMutations = () => {
   const qc = useQueryClient();
   const setUser = useAuthStore((s) => s.setUser);
-  const clear = useAuthStore((s) => s.clear);
+  const logoutClient = useAuthStore((s) => s.logout);
 
-  const login = useMutation({
+  // LOGIN
+  const loginMutation = useMutation({
     mutationFn: async (payload: { email: string; password: string }) => {
-      // client.post sẽ tự động xử lý credentials: "include"
       const data = await client.post<any>("/auth/login", payload);
       return data.user || data;
     },
     onSuccess: (user: User) => {
       setUser(user);
-      // Cập nhật cache ngay lập tức để UI phản hồi nhanh
       qc.setQueryData(["me"], user);
     },
   });
 
-  const register = useMutation({
+  // REGISTER
+  const registerMutation = useMutation({
     mutationFn: async (payload: any) => {
       const data = await client.post<any>("/auth/register", payload);
       return data.user || data;
@@ -68,16 +100,28 @@ export const useAuthMutations = () => {
     },
   });
 
-  const logout = useMutation({
+  // LOGOUT
+  const logoutMutation = useMutation({
     mutationFn: async () => {
       return client.post("/auth/logout", {});
     },
     onSuccess: () => {
-      clear();
+      // 1. Clear Auth State
+      logoutClient();
+
+      // 2. Clear Cache
       qc.setQueryData(["me"], null);
-      qc.removeQueries(); // Xóa sạch cache để đảm bảo an toàn bảo mật
+      qc.removeQueries();
+
+      // 3. Side Effects (Reset Theme, Prefs)
+      usePreferenceStore.getState().clear();
+      useThemeStore.getState().setPreference("light");
     },
   });
 
-  return { login, register, logout };
+  return {
+    login: loginMutation,
+    register: registerMutation,
+    logout: logoutMutation,
+  };
 };

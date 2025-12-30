@@ -25,7 +25,11 @@ const userPreferencesSchema = new mongoose.Schema(
         ],
       },
     ],
-
+    theme: {
+      type: String,
+      enum: ["light", "dark"], // Có thể thêm 'system' nếu muốn theo hệ điều hành
+      default: "light",
+    },
     // Cài đặt thông báo
     emailNotifications: {
       type: Boolean,

@@ -9,6 +9,7 @@ import UserPreferences from "../models/userPreferences.model.js";
 import Post from "../models/post.model.js"; // <--- Đảm bảo import này
 import Comment from "../models/comment.model.js"; // <--- Đảm bảo import này
 import { errorHandler } from "../utils/error.js";
+import mongoose from "mongoose";
 
 // =========================================================================
 // 1. NOTIFICATIONS
@@ -92,6 +93,7 @@ export const getUserPreferences = async (req, res, next) => {
         favoriteCategories: [],
         emailNotifications: true,
         pushNotifications: true,
+        theme: "light", // <--- Thêm giá trị mặc định khi tạo mới
       });
     }
     res.status(200).json({ success: true, data: prefs });
@@ -102,13 +104,26 @@ export const getUserPreferences = async (req, res, next) => {
 
 export const updateUserPreferences = async (req, res, next) => {
   try {
-    const { favoriteCategories, emailNotifications, pushNotifications } =
+    // 1. Lấy thêm 'theme' từ req.body
+    const { favoriteCategories, emailNotifications, pushNotifications, theme } =
       req.body;
+
+    // 2. Tạo object update động (chỉ cập nhật những trường có gửi lên)
+    const updateData = {};
+    if (favoriteCategories !== undefined)
+      updateData.favoriteCategories = favoriteCategories;
+    if (emailNotifications !== undefined)
+      updateData.emailNotifications = emailNotifications;
+    if (pushNotifications !== undefined)
+      updateData.pushNotifications = pushNotifications;
+    if (theme !== undefined) updateData.theme = theme; // <--- Quan trọng nhất là dòng này
+
     const prefs = await UserPreferences.findOneAndUpdate(
       { user: req.user._id },
-      { $set: { favoriteCategories, emailNotifications, pushNotifications } },
+      { $set: updateData }, // Update object động
       { new: true, upsert: true }
     );
+
     res.status(200).json({
       success: true,
       message: "Cập nhật sở thích thành công",
@@ -175,7 +190,7 @@ export const getLikedPosts = async (req, res, next) => {
       .populate({
         path: "post",
         select:
-          "title slug thumbnail summary author publishTime category status",
+          "title slug thumbnail summary author publishTime category status createdAt",
         populate: { path: "authorUser", select: "fullName avatar" },
       })
       .sort({ createdAt: -1 });
@@ -283,6 +298,7 @@ export const toggleFollow = async (req, res, next) => {
 export const searchUsers = async (req, res, next) => {
   try {
     const { searchTerm } = req.query;
+    console.log("Called", searchTerm);
     if (!searchTerm) return res.status(200).json({ success: true, data: [] });
 
     const users = await User.find({
@@ -291,11 +307,10 @@ export const searchUsers = async (req, res, next) => {
         { username: { $regex: searchTerm, $options: "i" } },
       ],
       isBanned: false,
-      isVerified: true,
     })
       .select("fullName username avatar role bio followersCount")
       .limit(20);
-
+    console.log("Users duoc tim thay:", users);
     res.status(200).json({ success: true, data: users });
   } catch (error) {
     next(error);
@@ -507,6 +522,93 @@ export const getAdminDashboardStats = async (req, res, next) => {
     });
   } catch (error) {
     console.error("❌ Error:", error);
+    next(error);
+  }
+};
+
+export const getAuthorStats = async (req, res, next) => {
+  try {
+    const currentUserId = req.user._id;
+
+    // 1. TÍNH TỔNG SỐ LIỆU (Views, Likes, Comments, Posts)
+    // Chúng ta dùng Aggregation trên bảng Post để cộng dồn các trường views, likes, comments
+    const statsAggregation = await Post.aggregate([
+      {
+        $match: {
+          authorUser: new mongoose.Types.ObjectId(currentUserId), // Quan trọng: Chỉ lấy bài của user này
+          isDeleted: false,
+          status: "published", // Chỉ tính bài đã xuất bản
+        },
+      },
+      {
+        $group: {
+          _id: null,
+          totalViews: { $sum: "$views" }, // Tổng lượt xem
+          totalLikes: { $sum: "$likes" }, // Tổng lượt tim bài viết
+          totalComments: { $sum: "$comments" }, // Tổng lượt bình luận
+          totalPosts: { $sum: 1 }, // Đếm số lượng bài
+        },
+      },
+    ]);
+
+    // Nếu chưa có bài viết nào thì trả về 0
+    const stats = statsAggregation[0] || {
+      totalViews: 0,
+      totalLikes: 0,
+      totalComments: 0,
+      totalPosts: 0,
+    };
+    console.log(stats);
+    // 2. BIỂU ĐỒ TẦN SUẤT NGƯỜI XEM (Growth Analytics) - 7 ngày gần nhất
+    // Sử dụng bảng ReadingHistory để biết chính xác lượt đọc xảy ra vào ngày nào
+    const sevenDaysAgo = new Date();
+    sevenDaysAgo.setDate(sevenDaysAgo.getDate() - 7);
+
+    // Bước A: Lấy danh sách ID bài viết của tác giả để lọc trong lịch sử đọc
+    const myPosts = await Post.find({ authorUser: currentUserId }).select(
+      "_id"
+    );
+    const myPostIds = myPosts.map((p) => p._id);
+
+    const growthData = await ReadingHistory.aggregate([
+      {
+        $match: {
+          post: { $in: myPostIds }, // Chỉ tính lượt đọc thuộc bài viết của tôi
+          readAt: { $gte: sevenDaysAgo }, // Lấy dữ liệu từ 7 ngày trước
+        },
+      },
+      {
+        $group: {
+          _id: {
+            $dateToString: { format: "%Y-%m-%d", date: "$readAt" }, // Gom nhóm theo ngày
+          },
+          views: { $sum: 1 }, // Đếm số lượt đọc trong ngày đó
+        },
+      },
+      { $sort: { _id: 1 } }, // Sắp xếp ngày tăng dần
+    ]);
+
+    // Format dữ liệu để thư viện biểu đồ ở Frontend dễ đọc (label, value)
+    const chartData = growthData.map((item) => ({
+      label: item._id.split("-").slice(1).join("/"), // Chuyển "2023-10-25" thành "10/25"
+      value: item.views,
+    }));
+    console.log(chartData);
+    // Lấy thêm số follower hiện tại
+    const author = await User.findById(currentUserId).select("followersCount");
+
+    res.status(200).json({
+      success: true,
+      data: {
+        stats: {
+          ...stats,
+          followerCount: author?.followersCount || 0,
+        },
+        chartData,
+      },
+    });
+    console.log(res.data);
+  } catch (error) {
     next(error);
   }
 };

@@ -176,6 +176,7 @@ export default function ProfileScreen() {
   };
 
   const renderPostItem = (post: Post, index: number) => (
+    // ... (Giữ nguyên logic render Post) ...
     <Animated.View
       entering={FadeInDown.delay(index * 100).duration(400)}
       key={post._id}
@@ -185,7 +186,7 @@ export default function ProfileScreen() {
           styles.postItem,
           { backgroundColor: theme.card, borderColor: theme.border },
         ]}
-        onPress={() => router.push(`/post/${post.slug}`)}
+        onPress={() => router.push(`/post/${post.slug}` as any)}
         activeOpacity={0.7}
       >
         <Image

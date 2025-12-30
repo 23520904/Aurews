@@ -1,4 +1,4 @@
-import React, { useEffect, useState, useMemo } from "react";
+import React, { useMemo } from "react";
 import {
   View,
   Text,
@@ -6,25 +6,15 @@ import {
   ActivityIndicator,
   TouchableOpacity,
   StatusBar,
-  Dimensions,
 } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
 
-import { useLocalSearchParams, useRouter, Stack } from "expo-router";
+import { useLocalSearchParams, useRouter } from "expo-router";
 import { Image } from "expo-image";
 import { Ionicons, MaterialCommunityIcons } from "@expo/vector-icons";
 import { useInfinitePosts } from "../../src/hooks/post.hook";
-import {
-  useUserPublicProfile,
-  useFollowers,
-  useFollowing,
-  useToggleFollow,
-} from "../../src/hooks/user.hook";
-import {
-  useTheme,
-  useThemeMode,
-  useAnimatedTheme,
-} from "../../src/hooks/theme.hook";
+import { useUserPublicProfile } from "../../src/hooks/user.hook";
+import { useTheme, useAnimatedTheme } from "../../src/hooks/theme.hook";
 import Animated, {
   useSharedValue,
   useAnimatedStyle,
@@ -34,14 +24,22 @@ import Animated, {
   FadeInDown,
 } from "react-native-reanimated";
 import { Post, UserRole } from "../../src/types/type";
+import { BackArrow } from "../../src/components/BackArrow";
+import { useRequireAuth } from "../../src/hooks/useRequireAuth";
+import { useAuthStore } from "../../src/stores/auth.store";
+import { useUserActivity } from "../../src/hooks/userActivity.hook";
 
 export default function PublicProfileScreen() {
   const { id } = useLocalSearchParams();
   const router = useRouter();
   const theme = useTheme();
   const { backgroundStyle } = useAnimatedTheme();
+  const requireAuth = useRequireAuth();
 
-  // Animation
+  // 1. Lấy Auth và UserActivity
+  const { isAuthenticated } = useAuthStore();
+  const { isFollowing, toggleFollow } = useUserActivity();
+
   const scrollY = useSharedValue(0);
 
   const { data: userData, isLoading: isLoadingUser } = useUserPublicProfile(
@@ -57,12 +55,29 @@ export default function PublicProfileScreen() {
     return postsData?.pages.flatMap((page: any) => page.posts) || [];
   }, [postsData]);
 
-  const { mutate: toggleFollow } = useToggleFollow();
+  // 2. Logic xác định trạng thái Follow chuẩn xác
+  // Sử dụng store client để UI cập nhật ngay lập tức khi bấm
+  const isFollowed =
+    user?._id && isAuthenticated ? isFollowing(user._id) : false;
+
+  const handleFollow = requireAuth(() => {
+    if (user?._id) {
+      toggleFollow(user._id);
+    }
+  }, "Vui lòng đăng nhập để theo dõi người dùng này");
+
+  const handleViewConnections = (type: "followers" | "following") => {
+    router.push({
+      pathname: "/user/connections",
+      params: { userId: id, type: type },
+    } as any);
+  };
 
   const scrollHandler = useAnimatedScrollHandler((event) => {
     scrollY.value = event.contentOffset.y;
   });
 
+  // ... (Giữ nguyên các Animation Style: headerLogoStyle, contextTitleStyle) ...
   const headerLogoStyle = useAnimatedStyle(() => {
     const opacity = interpolate(
       scrollY.value,
@@ -76,10 +91,7 @@ export default function PublicProfileScreen() {
       [1, 0.75],
       Extrapolation.CLAMP
     );
-    return {
-      opacity,
-      transform: [{ scale }],
-    };
+    return { opacity, transform: [{ scale }] };
   });
 
   const contextTitleStyle = useAnimatedStyle(() => {
@@ -95,13 +107,11 @@ export default function PublicProfileScreen() {
       [10, 0],
       Extrapolation.CLAMP
     );
-    return {
-      opacity,
-      transform: [{ translateY }],
-    };
+    return { opacity, transform: [{ translateY }] };
   });
 
   const renderRoleBadge = () => {
+    // ... (Giữ nguyên logic Badge) ...
     if (user?.role === UserRole.Admin) {
       return (
         <View style={[styles.roleBadge, { backgroundColor: "#FFD700" }]}>
@@ -126,6 +136,7 @@ export default function PublicProfileScreen() {
   };
 
   const renderPostItem = (post: Post, index: number) => (
+    // ... (Giữ nguyên logic render Post) ...
     <Animated.View
       entering={FadeInDown.delay(index * 100).duration(400)}
       key={post._id}
@@ -188,8 +199,8 @@ export default function PublicProfileScreen() {
   if (isLoadingUser) return <ActivityIndicator style={{ marginTop: 50 }} />;
   if (!user)
     return (
-      <View style={[styles.container, { backgroundColor: theme.background }]}>
-        <Text style={{ textAlign: "center", marginTop: 50, color: theme.text }}>
+      <View style={styles.container}>
+        <Text style={{ textAlign: "center", marginTop: 50 }}>
           User not found
         </Text>
       </View>
@@ -200,14 +211,8 @@ export default function PublicProfileScreen() {
       <StatusBar barStyle="dark-content" />
 
       <SafeAreaView edges={["top"]} style={{ flex: 1 }}>
-        {/* FLOATING HEADER */}
         <View style={styles.floatingHeader}>
-          <TouchableOpacity
-            style={styles.backButton}
-            onPress={() => router.back()}
-          >
-            <Ionicons name="arrow-back" size={24} color={theme.text} />
-          </TouchableOpacity>
+          <BackArrow style={{ marginLeft: 0 }} color={theme.text} />
 
           <Animated.View style={[styles.headerLogoContainer, headerLogoStyle]}>
             <Text style={[styles.logo, { color: theme.text }]}>
@@ -231,7 +236,6 @@ export default function PublicProfileScreen() {
           scrollEventThrottle={16}
           showsVerticalScrollIndicator={false}
         >
-          {/* PROFILE HEADER */}
           <View style={styles.profileHeader}>
             <View style={styles.topRow}>
               <Image
@@ -251,7 +255,11 @@ export default function PublicProfileScreen() {
                     Posts
                   </Text>
                 </View>
-                <View style={styles.statItem}>
+
+                <TouchableOpacity
+                  style={styles.statItem}
+                  onPress={() => handleViewConnections("followers")}
+                >
                   <Text style={[styles.statValue, { color: theme.text }]}>
                     {user.followersCount || 0}
                   </Text>
@@ -260,8 +268,12 @@ export default function PublicProfileScreen() {
                   >
                     Followers
                   </Text>
-                </View>
-                <View style={styles.statItem}>
+                </TouchableOpacity>
+
+                <TouchableOpacity
+                  style={styles.statItem}
+                  onPress={() => handleViewConnections("following")}
+                >
                   <Text style={[styles.statValue, { color: theme.text }]}>
                     {user.followingCount || 0}
                   </Text>
@@ -270,7 +282,7 @@ export default function PublicProfileScreen() {
                   >
                     Following
                   </Text>
-                </View>
+                </TouchableOpacity>
               </View>
             </View>
 
@@ -291,26 +303,32 @@ export default function PublicProfileScreen() {
               </Text>
             </View>
 
+            {/* 3. Render Nút Follow chuẩn Logic */}
             <TouchableOpacity
               style={[
                 styles.followButton,
-                user.isFollowing
+                isFollowed
                   ? {
-                      backgroundColor: theme.card,
+                      backgroundColor: "transparent",
                       borderWidth: 1,
                       borderColor: theme.border,
-                    }
-                  : { backgroundColor: theme.primary },
+                    } // Style cho "Đang theo dõi" (Outline)
+                  : {
+                      backgroundColor: theme.primary,
+                    }, // Style cho "Theo dõi" (Filled)
               ]}
-              onPress={() => toggleFollow(user._id)}
+              onPress={handleFollow}
             >
               <Text
                 style={[
                   styles.followButtonText,
-                  user.isFollowing ? { color: theme.text } : { color: "#fff" },
+                  isFollowed
+                    ? { color: theme.text } // Chữ màu thường
+                    : { color: "#fff" }, // Chữ màu trắng
                 ]}
               >
-                {user.isFollowing ? "Đang theo dõi" : "Theo dõi"}
+                {/* Logic hiển thị văn bản */}
+                {isFollowed ? "Đang theo dõi" : "Theo dõi"}
               </Text>
             </TouchableOpacity>
           </View>
@@ -353,12 +371,6 @@ const styles = StyleSheet.create({
     paddingHorizontal: 20,
     zIndex: 10,
     position: "relative",
-  },
-  backButton: {
-    width: 40,
-    height: 40,
-    justifyContent: "center",
-    zIndex: 20,
   },
   headerLogoContainer: {
     position: "absolute",
@@ -407,6 +419,7 @@ const styles = StyleSheet.create({
   },
   statItem: {
     alignItems: "center",
+    padding: 4,
   },
   statValue: {
     fontSize: 18,

@@ -27,6 +27,8 @@ import { useMyProfile } from "../../src/hooks/user.hook";
 import { Comment } from "../../src/types/type";
 import { useTheme } from "../../src/hooks/theme.hook";
 import { getTimeAgo } from "../../src/utils/dateHelpers";
+import { BackArrow } from "../../src/components/BackArrow";
+import { useRequireAuth } from "../../src/hooks/useRequireAuth";
 
 // Component con để hiển thị Replies (Lazy Load)
 const ReplyList = ({
@@ -85,32 +87,29 @@ const CommentItem = ({
 }) => {
   const theme = useTheme();
   const router = useRouter();
-  // Remove local useAuthStore, use prop instead
+  const requireAuth = useRequireAuth();
   const user = currentUser;
   const toggleLike = useToggleLikeComment(postId);
   const deleteComment = useDeleteComment(postId);
 
   const [showReplies, setShowReplies] = useState(false);
 
-  // Direct derived state from props - No local state for optimistic UI
   const isLiked =
     item.likesBy?.some((id) => id.toString() === user?._id?.toString()) ||
     false;
-  // Use likesBy.length as the source of truth if available, falling back to item.likes
   const likesCount = item.likesBy ? item.likesBy.length : item.likes || 0;
 
   const isOwner = user?._id === item.user._id;
   const isAdmin = item.user.role === "admin";
   const isAuthor = item.user.role === "author";
 
-  const handleLike = () => {
-    if (!user) {
-      Alert.alert("Thông báo", "Vui lòng đăng nhập để thích bình luận");
-      return;
-    }
-    // Directly call mutation, UI updates when query invalidates and refetches
+  const handleLike = requireAuth(() => {
     toggleLike.mutate(item._id);
-  };
+  }, "Vui lòng đăng nhập để thích bình luận");
+
+  const handleReply = requireAuth(() => {
+    onReplyPress(item);
+  }, "Vui lòng đăng nhập để trả lời bình luận");
 
   const handleDelete = () => {
     Alert.alert("Xóa bình luận", "Bạn có chắc muốn xóa bình luận này?", [
@@ -181,8 +180,8 @@ const CommentItem = ({
               >
                 {getTimeAgo(item.createdAt)}
               </Text>
-              {/* Reply Button */}
-              <TouchableOpacity onPress={() => onReplyPress(item)}>
+
+              <TouchableOpacity onPress={handleReply}>
                 <Text
                   style={[styles.actionText, { color: theme.textSecondary }]}
                 >
@@ -190,7 +189,6 @@ const CommentItem = ({
                 </Text>
               </TouchableOpacity>
 
-              {/* Delete Button */}
               {isOwner && (
                 <TouchableOpacity
                   style={{ marginLeft: 12 }}
@@ -206,7 +204,6 @@ const CommentItem = ({
             </View>
           </View>
 
-          {/* Like Icon */}
           <TouchableOpacity
             onPress={handleLike}
             style={{
@@ -235,7 +232,6 @@ const CommentItem = ({
           </TouchableOpacity>
         </View>
 
-        {/* View Replies Button */}
         {item.replyCount > 0 && !isReply && (
           <View
             style={{ marginTop: 8, flexDirection: "row", alignItems: "center" }}
@@ -277,10 +273,10 @@ export default function CommentsScreen() {
   const { postId } = useLocalSearchParams();
   const router = useRouter();
   const theme = useTheme();
+  const requireAuth = useRequireAuth();
   const { user: authUser } = useAuthStore();
   const { data: profileResponse } = useMyProfile();
 
-  // Use profile data if available, fallback to auth store
   const user = useMemo(() => {
     return (profileResponse as any)?.data || authUser;
   }, [profileResponse, authUser]);
@@ -317,28 +313,35 @@ export default function CommentsScreen() {
         onSuccess: () => {
           setText("");
           setReplyingTo(null);
-          setShowEmojiPicker(false); // Close emoji picker after send
+          setShowEmojiPicker(false);
         },
       }
     );
   };
 
   const handleReplyPress = (comment: Comment) => {
-    // Nếu comment hiện tại là reply, thì parentId vẫn là parentComment của nó
-    // Nếu comment hiện tại là root, thì parentId là _id của nó
     const targetParentId = comment.parentComment || comment._id;
-
     setReplyingTo({
       id: targetParentId,
       username: comment.user.fullName,
     });
-    // Set text to @username
     setText(`@${comment.user.username} `);
   };
 
-  const handleEmojiPress = (emoji: string) => {
+  // [UPDATED] Hàm xử lý chọn Emoji có check Auth
+  const handleEmojiPress = requireAuth((emoji: string) => {
     setText((prev) => prev + emoji);
-  };
+  }, "Vui lòng đăng nhập để sử dụng biểu tượng cảm xúc");
+
+  // [UPDATED] Hàm xử lý mở bảng Emoji có check Auth
+  const handleToggleEmojiPicker = requireAuth(() => {
+    setShowEmojiPicker(!showEmojiPicker);
+  }, "Vui lòng đăng nhập để sử dụng biểu tượng cảm xúc");
+
+  // Hàm chặn khi nhấn vào ô input (Overlay)
+  const handleInputAccess = requireAuth(() => {
+    // Logic rỗng, chỉ để trigger modal login
+  }, "Vui lòng đăng nhập để bình luận");
 
   const EMOJIS = [
     "❤️",
@@ -381,164 +384,78 @@ export default function CommentsScreen() {
     "👶",
     "👦",
     "👧",
-    "👨",
-    "👩",
-    "👱",
-    "👴",
-    "👵",
-    "👲",
-    "👳",
-    "👮",
-    "👷",
-    "💂",
-    "🕵",
-    "🎅",
-    "👼",
-    "👸",
-    "👰",
-    "🚶",
-    "🏃",
-    "💃",
-    "👯",
-    "👫",
-    "👬",
-    "👭",
-    "🙇",
-    "💁",
-    "🙅",
-    "🙆",
-    "🙋",
-    "🙎",
-    "🙍",
-    "💇",
-    "💆",
-    "💑",
-    "👩‍❤️‍👩",
-    "👨‍❤️‍👨",
-    "💏",
-    "👩‍❤️‍💋‍👩",
-    "👨‍❤️‍💋‍👨",
-    "👪",
-    "👨‍👩‍👧",
-    "👨‍👩‍👧‍👦",
-    "👨‍👩‍👦‍👦",
-    "👨‍👩‍👧‍👧",
-    "👩‍👩‍👦",
-    "👩‍👩‍👧",
-    "👩‍👩‍👧‍👦",
-    "👩‍👩‍👦‍👦",
-    "👩‍👩‍👧‍👧",
-    "👨‍👨‍👦",
-    "👨‍👨‍👧",
-    "👨‍👨‍👧‍👦",
-    "👨‍👨‍👦‍👦",
-    "👨‍👨‍👧‍👧",
-    "👚",
-    "👕",
-    "👖",
-    "👔",
-    "👗",
-    "👙",
-    "👘",
-    "💄",
-    "💋",
-    "👣",
-    "👠",
-    "👡",
-    "👢",
-    "👞",
-    "👟",
-    "👒",
-    "🎩",
-    "🎓",
-    "👑",
-    "🎒",
-    "👝",
-    "👛",
-    "👜",
-    "💼",
-    "👓",
-    "🕶",
-    "💍",
-    "🌂",
   ];
 
   return (
     <SafeAreaView
       style={[styles.container, { backgroundColor: theme.background }]}
-      edges={["top", "left", "right"]} // Only apply safe area to top/sides, let KeyboardAvoidingView handle bottom
+      edges={["top", "left", "right"]}
     >
       <Stack.Screen options={{ headerShown: false }} />
-
-      {/* Header */}
-      <View style={[styles.header, { borderBottomColor: theme.border }]}>
-        <TouchableOpacity
-          onPress={() => router.back()}
-          style={styles.backButton}
-        >
-          <Ionicons name="arrow-back" size={24} color={theme.text} />
-        </TouchableOpacity>
-        <Text style={[styles.headerTitle, { color: theme.text }]}>
-          Bình luận
-        </Text>
-        <View style={{ width: 24 }} />
-      </View>
-
-      <FlatList
-        data={postComments}
-        renderItem={({ item }) => (
-          <CommentItem
-            item={item}
-            postId={targetId}
-            onReplyPress={handleReplyPress}
-            currentUser={user}
-          />
-        )}
-        keyExtractor={(item) => item._id}
-        contentContainerStyle={styles.list}
-        ListEmptyComponent={
-          !commentsQuery.isLoading ? (
-            <View style={styles.emptyContainer}>
-              <Ionicons
-                name="chatbubble-ellipses-outline"
-                size={48}
-                color={theme.border}
-              />
-              <Text style={[styles.emptyText, { color: theme.textSecondary }]}>
-                Chưa có bình luận nào.
-              </Text>
-              <Text
-                style={[styles.emptySubText, { color: theme.textSecondary }]}
-              >
-                Hãy là người đầu tiên bình luận!
-              </Text>
-            </View>
-          ) : (
-            <ActivityIndicator
-              style={{ marginTop: 20 }}
-              color={theme.primary}
-            />
-          )
-        }
-      />
-
-      {/* Input Bar */}
       <KeyboardAvoidingView
-        behavior={Platform.OS === "ios" ? "padding" : undefined}
+        behavior={Platform.OS === "ios" ? "padding" : "height"}
         keyboardVerticalOffset={Platform.OS === "ios" ? 0 : 0}
-        style={{ width: "100%" }}
+        style={{ width: "100%", flex: 1, paddingBottom: 10 }}
       >
+        <View style={[styles.header, { borderBottomColor: theme.border }]}>
+          <BackArrow style={{ marginLeft: 0 }} />
+          <Text style={[styles.headerTitle, { color: theme.text }]}>
+            Bình luận
+          </Text>
+          <View style={{ width: 40 }} />
+        </View>
+
+        <FlatList
+          data={postComments}
+          renderItem={({ item }) => (
+            <CommentItem
+              item={item}
+              postId={targetId}
+              onReplyPress={handleReplyPress}
+              currentUser={user}
+            />
+          )}
+          keyExtractor={(item) => item._id}
+          contentContainerStyle={styles.list}
+          ListEmptyComponent={
+            !commentsQuery.isLoading ? (
+              <View style={styles.emptyContainer}>
+                <Ionicons
+                  name="chatbubble-ellipses-outline"
+                  size={48}
+                  color={theme.border}
+                />
+                <Text
+                  style={[styles.emptyText, { color: theme.textSecondary }]}
+                >
+                  Chưa có bình luận nào.
+                </Text>
+                <Text
+                  style={[styles.emptySubText, { color: theme.textSecondary }]}
+                >
+                  Hãy là người đầu tiên bình luận!
+                </Text>
+              </View>
+            ) : (
+              <ActivityIndicator
+                style={{ marginTop: 20 }}
+                color={theme.primary}
+              />
+            )
+          }
+        />
+
         <View
           style={[
             styles.inputContainer,
             {
               borderTopColor: theme.border,
               backgroundColor: theme.background,
-              paddingBottom: Platform.OS === "ios" ? 20 : 0, // Extra padding for iOS home indicator
+              paddingBottom: Platform.OS === "ios" ? 0 : 0,
             },
           ]}
         >
-          {/* Quick Emoji Bar (Horizontal) - Only show first 8 */}
+          {/* Quick Emoji Bar */}
           {!showEmojiPicker && (
             <View style={{ height: 40, justifyContent: "center" }}>
               <FlatList
@@ -618,6 +535,7 @@ export default function CommentsScreen() {
               </View>
             )}
 
+            {/* Input Wrapper */}
             <View
               style={[
                 styles.inputWrapper,
@@ -627,8 +545,8 @@ export default function CommentsScreen() {
                   borderWidth: 1,
                   minHeight: 44,
                   paddingVertical: 4,
-                  flexDirection: "row", // Ensure items are in row
-                  alignItems: "center", // Center vertically
+                  flexDirection: "row",
+                  alignItems: "center",
                 },
               ]}
             >
@@ -637,9 +555,9 @@ export default function CommentsScreen() {
                   styles.input,
                   {
                     color: theme.text,
-                    height: "100%", // Fill wrapper height
+                    height: "100%",
                     textAlignVertical: "center",
-                    flex: 1, // Take up remaining space
+                    flex: 1,
                   },
                 ]}
                 placeholder={
@@ -654,14 +572,22 @@ export default function CommentsScreen() {
                 onChangeText={setText}
                 editable={!!user}
                 multiline
-                numberOfLines={4} // Allow up to 4 lines
-                scrollEnabled // Enable scrolling if text exceeds
+                numberOfLines={4}
+                scrollEnabled
               />
 
-              {/* Emoji Icon Button inside Input */}
+              {/* Lớp phủ chặn người dùng guest bấm vào TextInput */}
+              {!user && (
+                <TouchableOpacity
+                  style={StyleSheet.absoluteFill}
+                  onPress={handleInputAccess}
+                />
+              )}
+
+              {/* Nút Emoji Toggle đã được bảo vệ */}
               <TouchableOpacity
                 style={{ padding: 4, marginRight: 4 }}
-                onPress={() => setShowEmojiPicker(!showEmojiPicker)}
+                onPress={handleToggleEmojiPicker}
               >
                 <Ionicons
                   name={showEmojiPicker ? "keypad" : "happy-outline"}
@@ -684,7 +610,6 @@ export default function CommentsScreen() {
             </TouchableOpacity>
           </View>
 
-          {/* Full Emoji Picker (Grid) */}
           {showEmojiPicker && (
             <View
               style={{
@@ -730,7 +655,6 @@ const styles = StyleSheet.create({
     paddingVertical: 12,
     borderBottomWidth: 1,
   },
-  backButton: { padding: 4 },
   headerTitle: { fontSize: 18, fontWeight: "bold" },
 
   list: { padding: 16 },
@@ -764,7 +688,7 @@ const styles = StyleSheet.create({
   viewReplyText: { fontSize: 12, fontWeight: "600", color: "#666" },
 
   likeBtn: {
-    display: "none", // Hide old like button
+    display: "none",
   },
   likeCount: { fontSize: 10, marginTop: 2 },
 
@@ -792,7 +716,7 @@ const styles = StyleSheet.create({
     height: 32,
     borderRadius: 16,
     marginRight: 12,
-    backgroundColor: "#ccc", // Fallback color to make it visible
+    backgroundColor: "#ccc",
   },
   inputWrapper: {
     flex: 1,
@@ -803,6 +727,7 @@ const styles = StyleSheet.create({
     paddingVertical: 8,
     borderWidth: 1,
     borderColor: "transparent",
+    position: "relative",
   },
   input: {
     flex: 1,

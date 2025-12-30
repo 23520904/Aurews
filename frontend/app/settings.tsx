@@ -14,6 +14,7 @@ import { Ionicons } from "@expo/vector-icons";
 import { useAuthStore } from "../src/stores/auth.store";
 import { useTheme, useThemeMode } from "../src/hooks/theme.hook";
 import { useMyProfile } from "../src/hooks/user.hook";
+import { BackArrow } from "../src/components/BackArrow";
 
 export default function SettingsScreen() {
   const router = useRouter();
@@ -40,7 +41,7 @@ export default function SettingsScreen() {
         style: "destructive",
         onPress: () => {
           logout();
-          router.replace("/(auth)/welcome" as any);
+          router.replace("/onboarding/welcome" as any);
         },
       },
     ]);
@@ -94,12 +95,7 @@ export default function SettingsScreen() {
     >
       {/* Header */}
       <View style={styles.header}>
-        <TouchableOpacity
-          onPress={() => router.back()}
-          style={styles.backButton}
-        >
-          <Ionicons name="arrow-back" size={24} color={theme.text} />
-        </TouchableOpacity>
+        <BackArrow />
         <Text style={[styles.headerTitle, { color: theme.text }]}>Cài đặt</Text>
         <View style={{ width: 40 }} />
       </View>
@@ -149,7 +145,7 @@ export default function SettingsScreen() {
           <>
             {renderSectionHeader("TÁC GIẢ")}
             <View style={styles.menuGroup}>
-              {renderMenuItem("stats-chart-outline", "Bảng điều khiển", () =>
+              {renderMenuItem("stats-chart-outline", "Thống kê tác giả", () =>
                 router.push("/author/dashboard")
               )}
               {renderMenuItem("document-text-outline", "Quản lý bài viết", () =>
@@ -162,9 +158,9 @@ export default function SettingsScreen() {
         {/* Admin Tools (Only for Admins) */}
         {isAdmin && (
           <>
-            {renderSectionHeader("QUẢN TRỊ")}
+            {renderSectionHeader("QUẢN TRỊ VIÊN")}
             <View style={styles.menuGroup}>
-              {renderMenuItem("grid-outline", "Dashboard Admin", () =>
+              {renderMenuItem("grid-outline", "Thống kê quản trị", () =>
                 router.push("/admin/dashboard")
               )}
               {renderMenuItem("people-outline", "Quản lý Người dùng", () =>

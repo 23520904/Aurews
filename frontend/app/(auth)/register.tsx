@@ -1,5 +1,3 @@
-import { Image } from "expo-image";
-// app/(auth)/register.tsx
 import React, { useState } from "react";
 import {
   View,
@@ -17,6 +15,7 @@ import { Link, router } from "expo-router";
 
 import { COLORS, FONTS } from "../../src/constants/theme";
 import { useAuthMutations } from "../../src/hooks/auth.hook";
+import { BackArrow } from "../../src/components/BackArrow";
 
 export default function Register() {
   const [fullName, setFullName] = useState("");
@@ -36,7 +35,13 @@ export default function Register() {
       return;
     }
     try {
-      await register.mutateAsync({ fullName, username, email, password, dateOfBirth });
+      await register.mutateAsync({
+        fullName,
+        username,
+        email,
+        password,
+        dateOfBirth,
+      });
       Alert.alert("Thành công", "Tạo tài khoản thành công!", [
         { text: "OK", onPress: () => router.replace("/(tabs)") },
       ]);
@@ -51,12 +56,20 @@ export default function Register() {
         contentContainerStyle={styles.scrollContainer}
         showsVerticalScrollIndicator={false}
       >
+        {/* --- [SỬA LẠI] ĐƯA NAV HEADER RA NGOÀI --- */}
+        <View style={styles.navHeader}>
+          <BackArrow />
+        </View>
+        {/* --------------------------------------- */}
+
         <View style={styles.header}>
-          <Image
-            source={require("../../assets/images/logo.png")}
-            style={styles.logo}
-            contentFit="contain"
-          />
+          {/* LOGO TEXT */}
+          <View style={styles.logoContainer}>
+            <Text style={styles.logoText}>
+              Aurews<Text style={styles.logoDot}>.</Text>
+            </Text>
+          </View>
+
           <Text style={styles.title}>Tạo tài khoản</Text>
           <Text style={styles.subtitle}>Tham gia Aurews ngay hôm nay</Text>
         </View>
@@ -123,14 +136,38 @@ export default function Register() {
 
 const styles = StyleSheet.create({
   safeArea: { backgroundColor: "#ffffff", flex: 1 },
+
+  // Style cho thanh điều hướng chứa nút Back
+  navHeader: {
+    width: "100%",
+    alignItems: "flex-start", // Căn trái
+    marginBottom: 10,
+    marginLeft: -4, // Căn chỉnh nhẹ để icon thẳng hàng với lề
+  },
+
   scrollContainer: {
     paddingHorizontal: 24,
-    paddingTop: 32,
+    paddingTop: 20,
     paddingBottom: 40,
     alignItems: "center",
   },
+
   header: { alignItems: "center", marginBottom: 24 },
-  logo: { width: 120, height: 120, marginBottom: 16 },
+
+  logoContainer: {
+    marginBottom: 20,
+    alignItems: "center",
+  },
+  logoText: {
+    fontSize: 42,
+    fontWeight: "900",
+    color: "#0f172a",
+    letterSpacing: -1.5,
+  },
+  logoDot: {
+    color: COLORS.primary,
+  },
+
   title: { fontSize: 24, fontWeight: "800", color: "#0f172a" },
   subtitle: { marginTop: 6, fontSize: 14, color: "#64748b" },
   form: { width: "100%" },

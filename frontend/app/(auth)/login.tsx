@@ -5,9 +5,9 @@ import { TextField } from "../../src/components/TextField";
 import { KeyboardAware } from "../../src/components/KeyboardAware";
 import { useAuthMutations } from "../../src/hooks/auth.hook";
 import { useState } from "react";
-import { Image } from "expo-image";
+
 import { COLORS, FONTS } from "../../src/constants/theme";
-import { Ionicons } from "@expo/vector-icons";
+import { BackArrow } from "../../src/components/BackArrow";
 
 export default function Login() {
   const [email, setEmail] = useState("");
@@ -30,20 +30,18 @@ export default function Login() {
   return (
     <KeyboardAware style={styles.safeArea}>
       <View style={styles.container}>
-        <View style={styles.header}>
-          <TouchableOpacity
-            onPress={() => router.back()}
-            accessibilityRole="button"
-            accessibilityLabel="Quay lại"
-          >
-            <Ionicons name="arrow-back" size={24} color={COLORS.secondary} />
-          </TouchableOpacity>
+        {/* --- DÙNG NAV HEADER GIỐNG REGISTER --- */}
+        <View style={styles.navHeader}>
+          <BackArrow />
         </View>
-        <Image
-          source={require("../../assets/images/logo.png")}
-          style={styles.logo}
-          contentFit="contain"
-        />
+        {/* ------------------------------------- */}
+
+        {/* LOGO TEXT */}
+        <View style={styles.logoContainer}>
+          <Text style={styles.logoText}>
+            Aurews<Text style={styles.logoDot}>.</Text>
+          </Text>
+        </View>
 
         <Text style={styles.title}>Chào mừng trở lại!</Text>
         <Text style={styles.subtitle}>Đăng nhập để tiếp tục</Text>
@@ -114,16 +112,33 @@ const styles = StyleSheet.create({
   container: {
     flex: 1,
     paddingHorizontal: 24,
-    paddingTop: 60,
+    // [SỬA] Giảm từ 60 xuống 20 để khớp với Register
+    paddingTop: 20,
     alignItems: "center",
   },
-  header: {
+
+  // [THÊM] Style navHeader giống hệt bên Register
+  navHeader: {
     width: "100%",
-    paddingHorizontal: 8,
-    paddingBottom: 12,
     alignItems: "flex-start",
+    marginBottom: 10,
+    marginLeft: -4, // Căn lề trái khớp icon
   },
-  logo: { width: 100, height: 100, marginBottom: 24 },
+
+  logoContainer: {
+    marginBottom: 32,
+    marginTop: 10,
+    alignItems: "center",
+  },
+  logoText: {
+    fontSize: 42,
+    fontWeight: "900",
+    color: COLORS.secondary,
+    letterSpacing: -1.5,
+  },
+  logoDot: {
+    color: COLORS.primary,
+  },
   title: {
     fontSize: 28,
     color: COLORS.secondary,
