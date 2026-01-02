@@ -1,33 +1,48 @@
 import React from "react";
-import { View, ViewStyle, StatusBar } from "react-native";
-import { useSafeAreaInsets } from "react-native-safe-area-context";
+import { ViewStyle, StatusBar, StyleSheet } from "react-native";
+// [QUAN TRỌNG] Import SafeAreaView và Edge từ thư viện này
+import { SafeAreaView, Edge } from "react-native-safe-area-context";
 import { useTheme } from "../hooks/theme.hook";
 
 interface Props {
   children: React.ReactNode;
   style?: ViewStyle;
   backgroundColor?: string;
+  // [FIX] Thêm dòng này để component chấp nhận prop 'edges'
+  edges?: Edge[];
 }
 
-export const PageContainer = ({ children, style, backgroundColor }: Props) => {
-  const insets = useSafeAreaInsets();
+export const PageContainer = ({
+  children,
+  style,
+  backgroundColor,
+  edges // [FIX] Nhận prop edges
+}: Props) => {
   const theme = useTheme();
 
   return (
-    <View
-      style={{
-        flex: 1,
-        // Ưu tiên backgroundColor truyền vào, nếu không dùng màu nền từ theme
-        backgroundColor: backgroundColor || theme.background,
-        paddingTop: insets.top,
-        paddingBottom: insets.bottom,
-        ...style,
-      }}
+    <SafeAreaView
+      // [FIX] Truyền edges vào đây. 
+      // Nếu bên ngoài không truyền, mặc định sẽ safe cả 4 cạnh ['top', 'bottom', 'left', 'right']
+      edges={edges || ['top', 'right', 'bottom', 'left']}
+      style={[
+        styles.container,
+        {
+          backgroundColor: backgroundColor || theme.background,
+        },
+        style,
+      ]}
     >
       <StatusBar
         barStyle={theme.mode === "dark" ? "light-content" : "dark-content"}
       />
       {children}
-    </View>
+    </SafeAreaView>
   );
 };
+
+const styles = StyleSheet.create({
+  container: {
+    flex: 1,
+  },
+});

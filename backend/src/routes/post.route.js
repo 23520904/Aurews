@@ -1,5 +1,6 @@
 // backend/src/routes/post.route.js
 import express from "express";
+import multer from "multer";
 import {
   createPost,
   getPosts,
@@ -9,6 +10,10 @@ import {
   getAuthorPosts,
   toggleLike,
   getMyPosts,
+  speakText,
+  transcribeAudio,
+  refineText,
+  chatWithArticle,
   restorePost, // <--- Đảm bảo đã import hàm này
 } from "../controllers/post.controller.js";
 import {
@@ -20,6 +25,7 @@ import { postImageUpload, uploadEditorImage } from "../utils/fileUpload.js";
 
 const router = express.Router();
 
+const upload = multer({ dest: "uploads/" });
 // ==================================================================
 // 1. CÁC ROUTE TĨNH (STATIC ROUTES) - PHẢI ĐẶT LÊN ĐẦU
 // ==================================================================
@@ -82,4 +88,11 @@ router.put(
   authorize("admin", "author"),
   restorePost
 );
+
+// Text-to-Speech
+router.post("/speak", speakText);
+router.post("/transcribe", protectRoute, upload.single("audio"), transcribeAudio);
+router.post("/refine", protectRoute, refineText);
+router.post("/chat-article", chatWithArticle);
+
 export default router;

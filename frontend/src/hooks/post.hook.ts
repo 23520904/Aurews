@@ -7,6 +7,10 @@ import {
 import { client } from "../api/client";
 import { PostsResponse, APIResponse, Post } from "../types/type";
 
+interface VoiceResponse {
+  success: boolean;
+  audioContent: string;
+}
 // Hook lấy danh sách bài viết (Cơ bản)
 export const usePosts = (params?: Record<string, any>) => {
   return useQuery({
@@ -269,5 +273,13 @@ export const useInfiniteMyPosts = (
       return undefined; // Không còn trang nào nữa
     },
     initialPageParam: 1,
+  });
+};
+export const useGetVoice = () => {
+  return useMutation({
+    mutationFn: async (text: string) => {
+      // Truyền Generic Type <VoiceResponse> vào client.post
+      return client.post<VoiceResponse>("/posts/speak", { text });
+    },
   });
 };

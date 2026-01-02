@@ -1,8 +1,11 @@
 import { Stack } from "expo-router";
-import { View, ActivityIndicator } from "react-native"; // Thêm ActivityIndicator
+import { View, ActivityIndicator } from "react-native";
 import Toast from "react-native-toast-message";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { SafeAreaProvider } from "react-native-safe-area-context";
+import { GestureHandlerRootView } from "react-native-gesture-handler"; // Import GestureHandler
+import { AudioProvider } from '../src/contexts/AudioContext';
+import { DraggablePlayer } from '../src/components/DraggablePlayer';
 import AuthRequestModal from "../src/components/AuthRequestModal";
 import { useCheckAuth } from "../src/hooks/auth.hook";
 import { useBookmarks } from "../src/hooks/user.hook";
@@ -13,9 +16,7 @@ import { useEffect } from "react";
 
 const queryClient = new QueryClient();
 
-// 1. Component khởi tạo Auth và đồng bộ dữ liệu người dùng
 function AuthInitializer() {
-  // Lấy thêm isChecking từ hook
   const { isChecking } = useCheckAuth();
   const { isAuthenticated } = useAuthStore();
   const bookmarksQuery = useBookmarks();
@@ -23,7 +24,6 @@ function AuthInitializer() {
     (s) => s.setBookmarkedPostIds
   );
 
-  // Đồng bộ Bookmark khi đã đăng nhập
   useEffect(() => {
     if (!isAuthenticated) return;
 
@@ -33,11 +33,11 @@ function AuthInitializer() {
         const serverItems = responseData.data;
         const ids = Array.isArray(serverItems)
           ? serverItems
-              .map((p: any) => {
-                const target = p.post || p;
-                return typeof target === "string" ? target : target?._id;
-              })
-              .filter(Boolean)
+            .map((p: any) => {
+              const target = p.post || p;
+              return typeof target === "string" ? target : target?._id;
+            })
+            .filter(Boolean)
           : [];
         setBookmarkedPostIds(ids);
       } catch (error) {
@@ -46,8 +46,6 @@ function AuthInitializer() {
     }
   }, [isAuthenticated, bookmarksQuery.data, setBookmarkedPostIds]);
 
-  // Nếu đang kiểm tra Storage -> Trả về null hoặc Loading Spinner
-  // Để tránh App render màn hình chính khi chưa biết là Guest hay User
   if (isChecking) {
     return (
       <View style={{ flex: 1, justifyContent: "center", alignItems: "center" }}>
@@ -59,7 +57,6 @@ function AuthInitializer() {
   return null;
 }
 
-// 2. Component bọc để ép giao diện luôn đúng màu theo Theme Store
 function ThemeProviderWrapper({ children }: { children: React.ReactNode }) {
   const theme = useTheme();
   return (
@@ -71,30 +68,39 @@ function ThemeProviderWrapper({ children }: { children: React.ReactNode }) {
 
 export default function RootLayout() {
   return (
-    <SafeAreaProvider>
-      <QueryClientProvider client={queryClient}>
-        <ThemeProviderWrapper>
-          <AuthInitializer />
+    // [FIX 1] Đưa GestureHandlerRootView lên bao bọc ngoài cùng (hoặc bên trong AudioProvider đều được)
+    // Miễn là nó bao bọc DraggablePlayer
+    <GestureHandlerRootView style={{ flex: 1 }}>
+      <AudioProvider>
+        <SafeAreaProvider>
+          <QueryClientProvider client={queryClient}>
+            <ThemeProviderWrapper>
+              <AuthInitializer />
 
-          <Stack screenOptions={{ headerShown: false }}>
-            <Stack.Screen name="(tabs)" />
-            <Stack.Screen name="(auth)" />
-            <Stack.Screen name="post/[slug]" />
-            <Stack.Screen
-              name="post/comments"
-              options={{
-                presentation: "modal",
-                headerShown: false,
-                gestureEnabled: true,
-              }}
-            />
-            <Stack.Screen name="index" />
-          </Stack>
+              <Stack screenOptions={{ headerShown: false }}>
+                <Stack.Screen name="(tabs)" />
+                <Stack.Screen name="(auth)" />
+                <Stack.Screen name="post/[slug]" />
+                <Stack.Screen
+                  name="post/comments"
+                  options={{
+                    presentation: "modal",
+                    headerShown: false,
+                    gestureEnabled: true,
+                  }}
+                />
+                <Stack.Screen name="index" />
+              </Stack>
 
-          <Toast />
-          <AuthRequestModal />
-        </ThemeProviderWrapper>
-      </QueryClientProvider>
-    </SafeAreaProvider>
+              {/* [FIX 2] Đặt DraggablePlayer ở đây (Bên trong GestureHandlerRootView) */}
+              <DraggablePlayer />
+
+              <Toast />
+              <AuthRequestModal />
+            </ThemeProviderWrapper>
+          </QueryClientProvider>
+        </SafeAreaProvider>
+      </AudioProvider>
+    </GestureHandlerRootView>
   );
 }

@@ -2,7 +2,14 @@ import Like from "../models/like.model.js";
 import Post from "../models/post.model.js";
 import ReadingHistory from "../models/readingHistory.model.js";
 import { errorHandler } from "../utils/error.js";
+import textToSpeech from "@google-cloud/text-to-speech";
+import fs from "fs";
+import util from "util";
 import slugify from "slugify"; // <--- QUAN TRỌNG: Nhớ import cái này
+import speech from "@google-cloud/speech";
+import { GoogleGenerativeAI } from "@google/generative-ai";
+
+const ttsClient = new textToSpeech.TextToSpeechClient();
 // =========================================================================
 // 1. CORE CRUD (CREATE, READ, UPDATE, DELETE)
 // =========================================================================
@@ -57,11 +64,9 @@ export const createPost = async (req, res, next) => {
       slug,
       thumbnail: thumbnail || "https://placehold.co/600x400?text=No+Image",
 
-      // --- FIX LỖI TẠI ĐÂY ---
-      // Model yêu cầu 'content', Frontend gửi 'text'
-      // Ta gán giá trị vào cả 2 để chắc chắn không bị lỗi validation
+
       text: postContent,
-      content: postContent, // <--- DÒNG QUAN TRỌNG ĐỂ FIX LỖI
+      content: postContent,
 
       authorUser: req.user._id,
       author: {
@@ -86,10 +91,71 @@ export const createPost = async (req, res, next) => {
     next(error);
   }
 };
+
+// 1. Cấu hình Google Speech
+const speechClient = new speech.SpeechClient();
+
+// 2. Cấu hình OpenAI (hoặc Gemini)
+const genAI = new GoogleGenerativeAI(process.env.GEMINI_API_KEY);
+const model = genAI.getGenerativeModel({ model: "gemini-2.5-flash" });
+// API: Upload Audio -> Text (Google STT)
+export const transcribeAudio = async (req, res) => {
+  try {
+    if (!req.file) return res.status(400).json({ message: "Thiếu file âm thanh" });
+    const audioBytes = fs.readFileSync(req.file.path).toString("base64");
+
+    const request = {
+      audio: { content: audioBytes },
+      config: {
+        encoding: "MP3",
+        sampleRateHertz: 16000,
+        languageCode: "en-US",
+      },
+    };
+
+    const [response] = await speechClient.recognize(request);
+    const transcription = response.results
+      .map(result => result.alternatives[0].transcript)
+      .join("\n");
+    fs.unlinkSync(req.file.path);
+
+    res.json({ text: transcription });
+  } catch (error) {
+    console.error(error);
+    res.status(500).json({ message: "Lỗi nhận diện giọng nói" });
+  }
+};
+
+// API: Refine Text (AI Editor)
+export const refineText = async (req, res, next) => {
+  try {
+    const { text } = req.body;
+    if (!text) return res.status(400).json({ message: "Thiếu nội dung text" });
+
+    const prompt = `
+      Bạn là một biên tập viên báo chí chuyên nghiệp. 
+      Nhiệm vụ: Hãy biên tập lại đoạn văn bản sau thành văn phong báo chí trang trọng, gãy gọn, sửa lỗi chính tả và ngữ pháp.
+      Quy tắc:
+      1. GIỮ NGUYÊN các sự kiện, số liệu, tên riêng, địa điểm. KHÔNG được bịa thêm thông tin.
+      2. Chỉ trả về duy nhất đoạn văn bản đã sửa, không thêm lời chào hay giải thích.
+      
+      Văn bản gốc: "${text}"
+    `;
+
+    const result = await model.generateContent(prompt);
+    const response = await result.response;
+    const refinedText = response.text();
+
+    res.status(200).json({ refinedText });
+
+  } catch (error) {
+    console.error("Lỗi Gemini:", error);
+    next(errorHandler(500, "Lỗi xử lý AI Refine"));
+  }
+};
 // LẤY DANH SÁCH BÀI VIẾT (GET POSTS)
 export const getPosts = async (req, res, next) => {
   try {
-    // 1. Parse Limit & Page an toàn
     const limit = parseInt(req.query.limit) || 10;
     const page = parseInt(req.query.page) || 1;
     const startIndex = (page - 1) * limit;
@@ -106,12 +172,10 @@ export const getPosts = async (req, res, next) => {
 
     // Search
     if (req.query.searchTerm) {
-      query.$text = { $search: req.query.searchTerm }; // Dùng Text Index (Hiệu năng cao hơn Regex)
+      query.$text = { $search: req.query.searchTerm };
     }
 
-    // Authorization: Admin sees all; Authors can view their own posts; others see only published posts
     if (req.user && (req.user.role === "author" || req.user.role === "admin")) {
-      // Admin can filter by status
       if (req.user.role === "admin" && req.query.status) {
         query.status = req.query.status;
       } else if (
@@ -119,24 +183,20 @@ export const getPosts = async (req, res, next) => {
         req.user._id &&
         req.query.userId !== req.user._id.toString()
       ) {
-        // Author requesting posts of others -> restrict to published
         query.status = "published";
         query.publishTime = { $lte: new Date() };
       }
-      // else: author requesting own posts -> no extra filter (allow drafts/scheduled)
     } else {
-      // Not logged in or regular reader
       query.status = "published";
       query.publishTime = { $lte: new Date() };
     }
 
-    // PROJECTION: Loại bỏ trường nặng 'text' (Nội dung bài) để list load nhanh
     const posts = await Post.find(query)
       .populate("authorUser", "fullName avatar username")
       .sort({ publishTime: sortDirection })
       .skip(startIndex)
       .limit(limit)
-      .select("-text -seo -location -videos"); // <--- TỐI ƯU HÓA
+      .select("-text -seo -location -videos");
 
     const totalPosts = await Post.countDocuments(query);
     const totalPages = Math.ceil(totalPosts / limit);
@@ -436,5 +496,138 @@ export const getMyPosts = async (req, res, next) => {
     });
   } catch (error) {
     next(error);
+  }
+};
+export const speakText = async (req, res, next) => {
+  try {
+    const { text } = req.body;
+
+    if (!text) {
+      return next(errorHandler(400, "Vui lòng cung cấp nội dung văn bản"));
+    }
+
+    // Google TTS giới hạn khoảng 5000 ký tự mỗi request.
+    // Nếu bài quá dài, bạn nên cắt ngắn hoặc xử lý logic chia đoạn (ở đây ta cắt tạm 4000)
+    const textToSpeak = text.substring(0, 4000);
+
+    // Cấu hình request gửi sang Google
+    const request = {
+      input: { text: textToSpeak },
+      // Chọn giọng tiếng Việt (Neural2 là giọng AI tự nhiên nhất)
+      voice: { languageCode: "en-US", name: "en-US-Studio-O" },
+      // Trả về định dạng MP3
+      audioConfig: { audioEncoding: "MP3" },
+    };
+
+    // Gọi Google API
+    const [response] = await ttsClient.synthesizeSpeech(request);
+
+    // response.audioContent là Binary Buffer
+    // Ta chuyển sang Base64 để dễ gửi về Frontend qua JSON
+    const audioBase64 = response.audioContent.toString("base64");
+
+    res.status(200).json({
+      success: true,
+      audioContent: audioBase64,
+    });
+  } catch (error) {
+    console.error("Lỗi Google TTS:", error);
+    next(errorHandler(500, "Không thể tạo giọng đọc lúc này"));
+  }
+
+};
+export const chatWithArticle = async (req, res) => {
+  try {
+    const { content, question, currentPostId, history } = req.body;
+
+    // Cắt bớt nội dung nếu quá dài để tiết kiệm token
+    const safeContent = content ? content.substring(0, 10000) : "";
+
+    // --- CASE 1: LẤY GỢI Ý (SUGGESTIONS) ---
+    if (!question) {
+      const prompt = `
+        Dựa vào bài báo sau:
+        """${safeContent}"""
+        
+        Hãy tạo ra 3 câu hỏi ngắn gọn (dưới 10 từ), khơi gợi sự tò mò mà người đọc có thể muốn hỏi AI.
+        Chỉ trả về định dạng JSON Array thuần túy, không markdown. Ví dụ: ["Câu hỏi 1", "Câu hỏi 2", "Câu hỏi 3"]
+      `;
+
+      const result = await model.generateContent(prompt);
+      const responseText = result.response.text();
+
+      // Làm sạch JSON (đề phòng Gemini trả về ```json ...)
+      const cleanJson = responseText.replace(/```json|```/g, '').trim();
+      const suggestions = JSON.parse(cleanJson);
+
+      return res.status(200).json({ suggestions });
+    }
+
+    // --- CASE 2: TRẢ LỜI CÂU HỎI & TÌM BÀI LIÊN QUAN ---
+
+    // Xây dựng ngữ cảnh lịch sử chat (nếu có)
+    let contextPrompt = "";
+    if (history && history.length > 0) {
+      contextPrompt = "Lịch sử chat:\n" + history.map(m => `${m.role}: ${m.content}`).join("\n") + "\n";
+    }
+
+    const promptAnswer = `
+      Bạn là một trợ lý tin tức thông minh.
+      Bài báo gốc: """${safeContent}"""
+      ${contextPrompt}
+      Câu hỏi hiện tại: "${question}"
+
+      Nhiệm vụ:
+      1. Trả lời câu hỏi một cách ngắn gọn, súc tích (dưới 150 từ). Ưu tiên thông tin trong bài báo. Nếu cần mở rộng kiến thức bên ngoài, hãy nói "Theo thông tin bổ sung...".
+      2. Trích xuất 1 từ khóa (keyword) quan trọng nhất liên quan đến chủ đề của câu trả lời này để tìm các bài báo khác trong cơ sở dữ liệu.
+      
+      Trả về kết quả dưới dạng JSON thuần túy (không markdown) theo cấu trúc:
+      {
+        "answer": "Nội dung câu trả lời...",
+        "searchKeyword": "Từ khóa (ví dụ: iPhone 16, Biến đổi khí hậu, VinFast...)"
+      }
+    `;
+
+    const result = await model.generateContent(promptAnswer);
+    const responseText = result.response.text();
+
+    // Parse JSON
+    const cleanJson = responseText.replace(/```json|```/g, '').trim();
+    let aiData;
+    try {
+      aiData = JSON.parse(cleanJson);
+    } catch (e) {
+      // Fallback nếu AI trả về lỗi định dạng
+      aiData = { answer: responseText, searchKeyword: "" };
+    }
+
+    // --- TÌM BÀI VIẾT LIÊN QUAN (RECOMMENDATION) ---
+    let relatedPosts = [];
+    if (aiData.searchKeyword) {
+
+      relatedPosts = await Post.find({
+        $and: [
+          { _id: { $ne: currentPostId } },
+          { status: "published" },
+          {
+            $or: [
+              { title: { $regex: aiData.searchKeyword, $options: 'i' } },
+              { category: { $regex: aiData.searchKeyword, $options: 'i' } }
+            ]
+          }
+        ]
+      })
+        .select('title slug thumbnail category') // Chỉ lấy field cần thiết
+        .limit(3); // Lấy tối đa 3 bài
+    }
+
+    return res.status(200).json({
+      answer: aiData.answer,
+      relatedPosts: relatedPosts
+    });
+
+  } catch (error) {
+    console.error("Gemini AI Error:", error);
+    res.status(500).json({ message: "AI đang bận, vui lòng thử lại sau.", answer: "Xin lỗi, tôi đang gặp sự cố kết nối." });
   }
 };
